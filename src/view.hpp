@@ -1,0 +1,6 @@
+#ifndef CPPVIEWS_VIEW_HPP_
+#define CPPVIEWS_VIEW_HPP_
+
+// TODO
+
+#endif  // CPPVIEWS_VIEW_HPP_
