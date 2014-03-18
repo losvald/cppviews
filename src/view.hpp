@@ -1,6 +1,10 @@
-#ifndef CPPVIEWS_VIEW_HPP_
-#define CPPVIEWS_VIEW_HPP_
+#ifndef CPPVIEWS_SRC_VIEW_HPP_
+#define CPPVIEWS_SRC_VIEW_HPP_
 
-// TODO
+namespace v {
 
-#endif  // CPPVIEWS_VIEW_HPP_
+// TODO:
+
+}  // namespace v
+
+#endif  /* CPPVIEWS_SRC_VIEW_HPP_ */
