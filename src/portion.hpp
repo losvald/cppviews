@@ -30,8 +30,24 @@ struct PortionSetHelper<const T> {
   inline void Set(const P& portion, size_t index, const T& value) {}
 };
 
+namespace {
+
+template<class InputIter>
+using IsReadOnly = std::is_const<
+  typename std::remove_reference<
+    typename std::iterator_traits<InputIter>::reference
+    >::type
+  >;
+
+}  // namespace
+
 template<class InputIter,
-         typename T = typename std::iterator_traits<InputIter>::value_type>
+         typename T = typename std::conditional<
+           IsReadOnly<InputIter>::value,
+           const typename std::iterator_traits<InputIter>::value_type,
+           typename std::iterator_traits<InputIter>::value_type
+           >::type
+         >
 class Portion : public PortionBase<T>, protected PortionSetHelper<T> {
  public:
   typedef InputIter Iterator;
@@ -73,51 +89,18 @@ template<class InputIter>
 using ReadonlyPortion = Portion<
   InputIter, const typename std::iterator_traits<InputIter>::value_type>;
 
-namespace {
-
 template<class InputIter>
-using IsReadOnly = std::is_const<
-  typename std::remove_reference<
-    typename std::iterator_traits<InputIter>::reference
-    >::type
-  >;
-
-}  // namespace
-
-template<class InputIter>
-typename std::enable_if<
-  !IsReadOnly<InputIter>::value,
-  Portion<InputIter> >::type constexpr MakePortion(
-      InputIter begin,
-      typename Portion<InputIter>::DiffType size) {
+constexpr Portion<InputIter> MakePortion(
+    InputIter begin,
+    typename Portion<InputIter>::DiffType size) {
   return Portion<InputIter>(begin, size);
 }
 
 template<class InputIter>
-typename std::enable_if<
-  IsReadOnly<InputIter>::value,
-  ReadonlyPortion<InputIter> >::type constexpr MakePortion(
-      InputIter begin,
-      typename ReadonlyPortion<InputIter>::DiffType size) {
-  return ReadonlyPortion<InputIter>(begin, size);
-}
-
-template<class InputIter>
-typename std::enable_if<
-  !IsReadOnly<InputIter>::value,
-  Portion<InputIter>* >::type constexpr AllocPortion(
-      InputIter begin,
-      typename Portion<InputIter>::DiffType size) {
+constexpr Portion<InputIter>* AllocPortion(
+    InputIter begin,
+    typename Portion<InputIter>::DiffType size) {
   return new Portion<InputIter>(begin, size);
-}
-
-template<class InputIter>
-typename std::enable_if<
-  IsReadOnly<InputIter>::value,
-  ReadonlyPortion<InputIter>* >::type constexpr AllocPortion(
-      InputIter begin,
-      typename ReadonlyPortion<InputIter>::DiffType size) {
-  return new ReadonlyPortion<InputIter>(begin, size);
 }
 
 }  // namespace v
