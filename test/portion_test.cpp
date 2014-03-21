@@ -1,9 +1,10 @@
 #include "../src/portion.hpp"
 #include "test.hpp"
 
+#include <functional>
 #include <vector>
 #include <set>
-#include <string>
+#include <type_traits>
 
 TEST(PortionTest, MetaTest) {
   int arr[] = {};
@@ -37,6 +38,11 @@ TEST(PortionTest, MetaTest) {
                ::value));
 }
 
+TEST(PortionTest, ClassSize) {
+  EXPECT_EQ(3 * sizeof(size_t), sizeof(Portion<size_t*>));
+  EXPECT_EQ(2 * sizeof(size_t), sizeof(SingletonPortion<size_t>));
+  EXPECT_EQ(11 * sizeof(size_t), sizeof(Portion<size_t[], size_t>));
+}
 
 TEST(PortionTest, Pointer) {
   int a[] = {0, 10, 20, 30, 40, 50};
@@ -147,7 +153,7 @@ TEST(PortionTest, BidirIter) {
   // af[0] = 100;         // compile error - OK
 }
 
-TEST(SingletonPortionTest, int) {
+TEST(SingletonPortionTest, Int) {
   int v = 5;
   Portion<int, int> p(v);
 
@@ -182,7 +188,7 @@ TEST(SingletonPortionTest, int) {
   // SingletonPortion<int> c(k);           // compile error - OK
 }
 
-TEST(ReadonlySingletonPortionTest, int) {
+TEST(SingletonPortionTest, IntConst) {
   int v = 7;
   ReadonlySingletonPortion<int> r(v);
 
@@ -207,33 +213,53 @@ TEST(ReadonlySingletonPortionTest, int) {
   ReadonlySingletonPortion<int> c(k);
 }
 
-// namespace {
+TEST(SingletonMultiportionTest, Constructor) {
+  // Portion<int[], int> p = {10, 20, 30}; // compile error - OK
+  int a = 10, b = 20, c = 30;
+  Portion<int[], int> p = {a, b, c};
+  EXPECT_EQ(3, p.size());
+  EXPECT_EQ(10, p[0]);
+  EXPECT_EQ(20, p[1]);
+  EXPECT_EQ(30, p[2]);
 
-// struct MyClass {
-//   std::string s;
-//   bool moved = false;
-//   bool copied = false;
+  auto o = MakePortion<int>({a, b, c});
+  EXPECT_EQ(10, o[0]);
+  EXPECT_EQ(20, o[1]);
+  EXPECT_EQ(30, o[2]);
 
-//   MyClass(MyClass&& other)
-//       : s(std::move(other.s)),
-//         moved(true) {}
-//   MyClass(const MyClass& other) : s(other.s), copied(true) {}
-//   MyClass() = default;
+  p[1] = 200;
+  EXPECT_EQ(200, p[1]);
+  EXPECT_EQ(200, o[1]);
+  EXPECT_EQ(200, b);
 
-//   // MyClass& operator=(MyClass&& rhs) = default;
-//   MyClass& operator=(const MyClass& rhs) = default;
-// };
+  b = 2000;
+  EXPECT_EQ(2000, p[1]);
+  EXPECT_EQ(2000, o[1]);
 
-// }  // namespace MyClass
+  auto r = MakePortion({std::ref(a), std::ref(b), std::ref(c)});
+  EXPECT_EQ(2000, r[1]);
+}
 
-// TEST(PortionSingletonTest, MyClass) {
-//   MyClass c;
-//   SingletonPortion<MyClass> pd(c);
-//   EXPECT_FALSE(pd[0].moved);
-//   EXPECT_FALSE(pd[0].copied);
+TEST(SingletonMultiportionTest, PushPop) {
+  Portion<int[], int> p;
+  int a = 10;
+  int b = 20;
+  int c = 30;
+  p.PushBack(b);
+  EXPECT_EQ(p.front(), p.back());
+  EXPECT_EQ(20, p.back());
 
-//   SingletonPortion<MyClass> pm(std::move(pd));
-//       // SingletonPortion<MyClass>();
-//   EXPECT_TRUE(pm[0].moved);
-//   EXPECT_FALSE(pd[0].copied);
-// }
+  p.PushFront(a);
+  EXPECT_EQ(2, p.size());
+  p.PushBack(c);
+  p.Shrink();
+  EXPECT_EQ(3, p.size());
+  EXPECT_EQ(30, p.back());
+  EXPECT_EQ(10, p.front());
+
+  p.PopFront();
+  EXPECT_EQ(30, p.back());
+  p.PopBack();
+  EXPECT_EQ(p.front(), p.back());
+  EXPECT_EQ(20, p.back());
+}
