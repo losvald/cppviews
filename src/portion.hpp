@@ -180,11 +180,27 @@ constexpr SingletonMultiportion<T> MakePortion(
   return SingletonMultiportion<T>(init);
 }
 
+template<typename T>
+constexpr SingletonPortion<T> MakePortion(T& value) {
+  return SingletonPortion<T>(value);
+}
+
 template<class InputIter>
 constexpr Portion<InputIter>* AllocPortion(
     InputIter begin,
     typename Portion<InputIter>::DiffType size) {
   return new Portion<InputIter>(begin, size);
+}
+
+template<typename T>
+constexpr SingletonMultiportion<T>* AllocPortion(
+    std::initializer_list<std::reference_wrapper<T> > init) {
+  return new SingletonMultiportion<T>(init);
+}
+
+template<typename T>
+constexpr SingletonPortion<T>* AllocPortion(T& value) {
+  return SingletonPortion<T>(value);
 }
 
 }  // namespace v

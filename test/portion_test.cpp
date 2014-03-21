@@ -173,9 +173,11 @@ TEST(SingletonPortionTest, Int) {
   EXPECT_EQ(42, p);
 
   SingletonPortion<int> r = p;
+  auto s = MakePortion(v);
   v = 100;
   EXPECT_EQ(100, p);
   EXPECT_EQ(100, r);
+  EXPECT_EQ(100, s);
 
   int w = 23;
   size_t old_addr = (size_t)&p;
@@ -199,8 +201,10 @@ TEST(SingletonPortionTest, IntConst) {
   // int& x = r;                           // compile error - OK
 
   // verify that modifications from outside the portion are visible
+  auto p = MakePortion(v);
   v = 100;
   EXPECT_EQ(100, r);
+  EXPECT_EQ(100, p);
 
   int w = 23;
   size_t old_addr = (size_t)&r;
