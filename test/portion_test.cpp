@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <set>
+#include <string>
 
 TEST(PortionTest, MetaTest) {
   int arr[] = {};
@@ -145,3 +146,94 @@ TEST(PortionTest, BidirIter) {
   EXPECT_EQ(50, af2[3]);
   // af[0] = 100;         // compile error - OK
 }
+
+TEST(SingletonPortionTest, int) {
+  int v = 5;
+  Portion<int, int> p(v);
+
+  EXPECT_EQ(1, p.size());
+  EXPECT_EQ(5, p.get(0));
+
+  p.set(0, 10);
+  EXPECT_EQ(10, p.get(0));
+  EXPECT_EQ(10, v);
+
+  p[0] = 21;
+  EXPECT_EQ(21, p[0]);
+  EXPECT_EQ(21, v);
+
+  auto doubler = [](int& x) { x += x; };
+  doubler(p);
+  EXPECT_EQ(42, p);
+
+  SingletonPortion<int> r = p;
+  v = 100;
+  EXPECT_EQ(100, p);
+  EXPECT_EQ(100, r);
+
+  int w = 23;
+  size_t old_addr = (size_t)&p;
+  p = w;
+  EXPECT_EQ(old_addr, (size_t)&p);
+
+  // SingletonPortion<int> q(3);           // compile error - OK
+
+  // const int k = 10;
+  // SingletonPortion<int> c(k);           // compile error - OK
+}
+
+TEST(ReadonlySingletonPortionTest, int) {
+  int v = 7;
+  ReadonlySingletonPortion<int> r(v);
+
+  EXPECT_EQ(1, r.size());
+  EXPECT_EQ(7, r.get(0));
+
+  // r[0] = 21;                            // compile error - OK
+  // int& x = r;                           // compile error - OK
+
+  // verify that modifications from outside the portion are visible
+  v = 100;
+  EXPECT_EQ(100, r);
+
+  int w = 23;
+  size_t old_addr = (size_t)&r;
+  r = w;
+  EXPECT_EQ(old_addr, (size_t)&r);
+
+  // ReadonlySingletonPortion<int> q(3);   // compile error - OK
+
+  const int k = 10;
+  ReadonlySingletonPortion<int> c(k);
+}
+
+// namespace {
+
+// struct MyClass {
+//   std::string s;
+//   bool moved = false;
+//   bool copied = false;
+
+//   MyClass(MyClass&& other)
+//       : s(std::move(other.s)),
+//         moved(true) {}
+//   MyClass(const MyClass& other) : s(other.s), copied(true) {}
+//   MyClass() = default;
+
+//   // MyClass& operator=(MyClass&& rhs) = default;
+//   MyClass& operator=(const MyClass& rhs) = default;
+// };
+
+// }  // namespace MyClass
+
+// TEST(PortionSingletonTest, MyClass) {
+//   MyClass c;
+//   SingletonPortion<MyClass> pd(c);
+//   EXPECT_FALSE(pd[0].moved);
+//   EXPECT_FALSE(pd[0].copied);
+
+//   SingletonPortion<MyClass> pm(std::move(pd));
+//       // SingletonPortion<MyClass>();
+//   EXPECT_TRUE(pm[0].moved);
+//   EXPECT_FALSE(pd[0].copied);
+// }

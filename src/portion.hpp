@@ -3,6 +3,7 @@
 
 #include <iterator>
 #include <type_traits>
+#include <iostream>
 
 namespace v {
 
@@ -11,7 +12,7 @@ class PortionBase {
  public:
   typedef T ValueType;
 
-  virtual void set(size_t index, const T& value) = 0;
+  virtual void set(size_t index, const T& value) const = 0;
   virtual const T& get(size_t index) const = 0;
   virtual size_t size() const = 0;
 };
@@ -19,7 +20,7 @@ class PortionBase {
 template<typename T>
 struct PortionSetHelper {
   template<class P>
-  inline void Set(const P& portion, size_t index, const T& value) {
+  inline void Set(const P& portion, size_t index, const T& value) const {
     portion[index] = value;
   }
 };
@@ -27,7 +28,7 @@ struct PortionSetHelper {
 template<typename T>
 struct PortionSetHelper<const T> {
   template<class P>
-  inline void Set(const P& portion, size_t index, const T& value) {}
+  inline void Set(const P& portion, size_t index, const T& value) const {}
 };
 
 namespace {
@@ -63,15 +64,11 @@ class Portion : public PortionBase<T>, protected PortionSetHelper<T> {
 
   Portion() {}
 
-  constexpr const RefType operator[](DiffType index) const {
+  constexpr RefType operator[](DiffType index) const {
     return *std::next(begin_, index);
   }
 
-  inline RefType operator[](DiffType index) {
-    return *std::next(begin_, index);
-  }
-
-  inline void set(size_t index, const T& value) {
+  inline void set(size_t index, const T& value) const {
     this->Set(*this, index, value);
   }
 
@@ -88,6 +85,35 @@ class Portion : public PortionBase<T>, protected PortionSetHelper<T> {
 template<class InputIter>
 using ReadonlyPortion = Portion<
   InputIter, const typename std::iterator_traits<InputIter>::value_type>;
+
+template<typename T>
+class Portion<T, T> : public PortionBase<T>, protected PortionSetHelper<T> {
+ public:
+  constexpr Portion(T& value) : ptr_(&value) {}
+  Portion(T&& value) = delete;          // disallow references to temporaries
+  Portion() {}
+
+  constexpr operator T&() const { return *ptr_; }
+
+  // for consistency
+  constexpr T& operator[](size_t index) const { return *ptr_; }
+
+  inline void set(size_t index, const T& value) const {
+    this->Set(*this, index, value);
+  }
+
+  constexpr const T& get(size_t index) const { return *ptr_; }
+  constexpr size_t size() const { return static_cast<size_t>(1); }
+
+ private:
+  T* ptr_;
+};
+
+template<typename T>
+using SingletonPortion = Portion<T, T>;
+
+template<typename T>
+using ReadonlySingletonPortion = SingletonPortion<const T>;
 
 template<class InputIter>
 constexpr Portion<InputIter> MakePortion(
