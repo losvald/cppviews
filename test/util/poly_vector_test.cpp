@@ -4,24 +4,30 @@
 #include <algorithm>
 #include <string>
 
-struct ReversedString : public std::string {
+struct String : public std::string {
+  template<typename... Args>
+  String(Args&&... args) : std::string(//args...) {}
+      std::forward<Args>(args)...) {}
+  virtual ~String() {}          // make String polymorphic
+};
+
+struct ReversedString : public String {
   ReversedString(size_type count, char ch)
       : ReversedString(std::string(count, ch)) {}
-  ReversedString(const std::string& s) : std::string(s.rbegin(), s.rend()) {}
+  ReversedString(const std::string& s) : String(s.rbegin(), s.rend()) {}
   ReversedString() {}
 };
 
-struct SortedString : public std::string {
-  SortedString(size_type count, char ch)
-      : std::string(count, ch) {}
-  SortedString(const std::string& s) : std::string(s) {
+struct SortedString : public String {
+  SortedString(size_type count, char ch) : String(count, ch) {}
+  SortedString(const std::string& s) : String(s) {
     std::sort(begin(), end());
   }
   SortedString() {}
 };
 
 typedef ::testing::Types<
-  std::string,
+  String,
   ReversedString,
   SortedString
   > StringTypes;
@@ -34,19 +40,70 @@ struct PolyVectorTest : public ::testing::Test {
 #define V__POLYVEC_APP(type, arg, ...)               \
   template Append<type>(arg, ##__VA_ARGS__)
 
-TYPED_TEST(PolyVectorTest, StringTypes) {
-  PolyVector<TypeParam, std::string> pv;
+struct ReversedStringFactory {
+  template<typename... Args>
+  ReversedString operator()(Args&&... args) const {
+    FAIL();                  // verify this functor is not ever called
+  }
+};
 
+TYPED_TEST(PolyVectorTest, StringTypes) {
+  PolyVector<TypeParam, String> pv;
   pv.template Append<TypeParam>(3, 'a');
   EXPECT_EQ("aaa", pv[0]);
-
   pv.V__POLYVEC_APP(TypeParam, "bb");
   EXPECT_EQ("bb", pv[1]);
+
+  const char* anagram = "slot";
+  TypeParam s(anagram);
+  PolyVector<TypeParam, TypeParam> pv_same;
+  pv_same.V__POLYVEC_APP(TypeParam, anagram);
+  EXPECT_EQ(s, pv_same[0]);
 }
 
-TEST(PolyVectorSameClassTest, ReversedString) {
-  ReversedString foo("foo");
-  PolyVector<ReversedString, std::string> pv;
-  pv.template Append<ReversedString>("bats");
-  EXPECT_EQ("stab", pv[0]);
+TEST(PolyVectorSameClassTest, FactoryNoOverload) {
+  PolyVector<String, String, ReversedStringFactory> pvr;
+  pvr.Append("bats");
+  EXPECT_EQ("stab", pvr[0]);
+
+  SortedString abot("boat");
+  PolyVector<SortedString, SortedString> pv;
+  pv.Append(abot);
+  EXPECT_EQ("abot", pv[0]);
+}
+
+struct StringFactory {
+  ReversedString operator()(const std::string& other) const {
+    ADD_FAILURE();           // verify this functor is not ever called
+    return ReversedString(other);
+  }
+  SortedString operator()() const {
+    ADD_FAILURE();           // verify this functor is not ever called
+    return SortedString();
+  }
+  String operator()(String::size_type count, char ch) const {
+    ADD_FAILURE();           // verify this functor is not ever called
+    return String();
+  }
+};
+
+TEST(PolyVectorSameClassTest, FactoryOverload) {
+  PolyVector<String, String, StringFactory> pv;
+
+  pv.Append();
+  EXPECT_NO_THROW({
+      EXPECT_EQ("", dynamic_cast<SortedString&>(pv[0]));
+    });
+  EXPECT_ANY_THROW(dynamic_cast<ReversedString&>(pv[0]));
+
+  pv.Append(std::string("bats"));
+  EXPECT_NO_THROW({
+      EXPECT_EQ("stab", dynamic_cast<ReversedString&>(pv[1]));
+    });
+  EXPECT_ANY_THROW(dynamic_cast<SortedString&>(pv[1]));
+
+  pv.Append(3, 'X');
+  EXPECT_ANY_THROW(dynamic_cast<ReversedString&>(pv[2]));
+  EXPECT_ANY_THROW(dynamic_cast<SortedString&>(pv[2]));
+  EXPECT_EQ("XXX", pv[2]);
 }

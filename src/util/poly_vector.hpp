@@ -23,14 +23,21 @@ struct PolyVectorEmplaceHelper {
   }
 };
 
-template<class T, class Base = T>
+template<typename T>
+struct PolyVectorDefaultFactory {
+  template<typename... Args>
+  constexpr T operator()(Args&&... args) const { return T(); }
+};
+
+template<class T, class Base = T, class Factory = PolyVectorDefaultFactory<T> >
 class PolyVector {
  public:
   typedef PolyUniqPtr<T, Base> Pointer;
 
-  // implicitly defined:
-  // PolyVector() = default;
+  PolyVector(size_t capacity) { v_.reserve(capacity); }
+  // PolyVector(const PolyVector& pv) = default;
   // PolyVector(PolyVector&& pv) = default;
+  PolyVector() = default;
 
   inline const T& operator[](size_t index) const {
     return *v_[index];
@@ -41,15 +48,21 @@ class PolyVector {
   }
 
   template<typename... Args>
-  inline PolyVector& Append(Args&&... args) {
-    return this->template Append(std::forward<Args>(args)...);
+  inline PolyVector& AppendThis(Args&&... args) {
+    return this->template Append<T>(std::forward<Args>(args)...);
+  }
+
+  template<typename... Args>
+  inline PolyVector&& Append(Args&&... args) {
+    return this->Append<decltype(Factory()(std::forward<Args>(args)...))>(
+        std::forward<Args>(args)...);
   }
 
   template<class Derived, typename... Args>
-  inline PolyVector& Append(Args&&... args) {
+  inline PolyVector&& Append(Args&&... args) {
     PolyVectorEmplaceHelper<T, Base> h;
     h.template Emplace<Derived>(v_, std::forward<Args>(args)...);
-    return *this;
+    return std::move(*this);
   }
 
   void Shrink() { v_.shrink_to_fit(); }
