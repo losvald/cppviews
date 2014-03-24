@@ -80,23 +80,25 @@ class PortionSpeedTest : public ::testing::Test,
   ValueType hash_;
 };
 
+namespace {
+
 template<class P, typename T>
-struct PortionFactory {
-  PortionFactory(T* arr, size_t size);
+struct MyPortionFactory {
+  MyPortionFactory(T* arr, size_t size);
   P operator()();
 };
 
 template<typename T>
-struct PortionFactory<T*, T> {
-  PortionFactory(T* arr, size_t size) : arr_(arr) {}
+struct MyPortionFactory<T*, T> {
+  MyPortionFactory(T* arr, size_t size) : arr_(arr) {}
   T* operator()() { return arr_; }
  private:
   T* arr_;
 };
 
 template<typename T>
-struct PortionFactory<Portion<T*>, T> {
-  PortionFactory(T* arr, size_t size) : arr_(arr), size_(size) {}
+struct MyPortionFactory<Portion<T*>, T> {
+  MyPortionFactory(T* arr, size_t size) : arr_(arr), size_(size) {}
   Portion<T*> operator()() { return MakePortion(arr_, size_); }
  private:
   T* arr_;
@@ -104,8 +106,8 @@ struct PortionFactory<Portion<T*>, T> {
 };
 
 template<typename T>
-struct PortionFactory<Portion<std::reverse_iterator<T*> >, T> {
-  PortionFactory(T* arr, size_t size) : rarr_(arr + size), size_(size) {}
+struct MyPortionFactory<Portion<std::reverse_iterator<T*> >, T> {
+  MyPortionFactory(T* arr, size_t size) : rarr_(arr + size), size_(size) {}
   Portion<std::reverse_iterator<T*> > operator()() {
     return MakePortion(rarr_, size_);
   }
@@ -115,8 +117,8 @@ struct PortionFactory<Portion<std::reverse_iterator<T*> >, T> {
 };
 
 template<typename T>
-struct PortionFactory<Portion<typename std::vector<T>::iterator>, T> {
-  PortionFactory(T* arr, size_t size) : c_(arr, arr + size) {}
+struct MyPortionFactory<Portion<typename std::vector<T>::iterator>, T> {
+  MyPortionFactory(T* arr, size_t size) : c_(arr, arr + size) {}
   Portion<typename std::vector<T>::iterator> operator()() {
     return MakePortion(c_.begin(), c_.size());
   }
@@ -125,14 +127,16 @@ struct PortionFactory<Portion<typename std::vector<T>::iterator>, T> {
 };
 
 template<typename T>
-struct PortionFactory<Portion<typename std::vector<T>::reverse_iterator>, T> {
-  PortionFactory(T* arr, size_t size) : c_(arr, arr + size) {}
+struct MyPortionFactory<Portion<typename std::vector<T>::reverse_iterator>, T> {
+  MyPortionFactory(T* arr, size_t size) : c_(arr, arr + size) {}
   Portion<typename std::vector<T>::reverse_iterator> operator()() {
     return MakePortion(c_.rbegin(), c_.size());
   }
  private:
   std::vector<T> c_;
 };
+
+}  // namespace
 
 typedef ::testing::Types<
   int*,
@@ -166,7 +170,7 @@ TEST_F(PortionSpeedTestOverhead, Write100MOverhead) {
 TYPED_TEST(PortionSpeedTest, Read100M) {
   int arr[this->gArrSize];
   this->InitArray(arr, this->gArrSize);
-  PortionFactory<TypeParam, int> pf(arr, this->gArrSize);
+  MyPortionFactory<TypeParam, int> pf(arr, this->gArrSize);
   TypeParam p = pf();
 
   int last = 1;
@@ -179,7 +183,7 @@ TYPED_TEST(PortionSpeedTest, Read100M) {
 TYPED_TEST(PortionSpeedTest, Write100M) {
   int arr[this->gArrSize];
   this->InitArray(arr, this->gArrSize);
-  PortionFactory<TypeParam, int> pf(arr, this->gArrSize);
+  MyPortionFactory<TypeParam, int> pf(arr, this->gArrSize);
   TypeParam p = pf();
 
   int last = 1;

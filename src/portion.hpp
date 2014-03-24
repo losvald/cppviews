@@ -203,6 +203,22 @@ constexpr SingletonPortion<T>* AllocPortion(T& value) {
   return SingletonPortion<T>(value);
 }
 
+struct PortionFactory {
+  template<typename... Args>
+  constexpr auto operator()(Args&&... args) const ->
+      decltype(MakePortion(std::forward<Args>(args)...)) {
+    return MakePortion(std::forward<Args>(args)...);
+  }
+};
+
+struct PortionAllocator {
+  template<typename... Args>
+  constexpr auto operator()(Args&&... args) const ->
+      decltype(AllocPortion(std::forward<Args>(args)...)) {
+    return AllocPortion(std::forward<Args>(args)...);
+  }
+};
+
 }  // namespace v
 
 #endif  /* CPPVIEWS_SRC_PORTION_HPP_ */
