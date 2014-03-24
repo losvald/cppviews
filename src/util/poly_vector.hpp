@@ -66,7 +66,9 @@ class PolyVector {
   }
 
   void Shrink() { v_.shrink_to_fit(); }
+
   size_t size() const { return v_.size(); }
+  size_t max_size() const { return v_.max_size(); }
 
  private:
   std::vector<Pointer> v_;

@@ -7,6 +7,8 @@
 template<typename T>
 class FakePointer {
  public:
+  typedef T element_type;
+
   template<typename ... Args>
   FakePointer(Args&&... args) : data_(std::forward<Args>(args)...) {}
 
