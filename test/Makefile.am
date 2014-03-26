@@ -4,6 +4,7 @@ bin_PROGRAMS = unittest_all speedtest_all
 unittest_all_SOURCES = test.cpp \
 	util/bit_twiddling_test.cpp \
 	util/fake_pointer_test.cpp \
+	util/immutable_skip_list_test.cpp \
 	util/poly_vector_test.cpp \
 	portion_test.cpp \
 	list_test.cpp
