@@ -26,14 +26,23 @@ class ImmutableSkipList {
       const BucketSizeGetter& bucket_size_getter = BucketSizeGetter())
       : bkt_cnt_(bucket_count),
         size_getter_(bucket_size_getter),
-        skip_cnts_(Pow2RoundUp(bucket_count)) {
-    // fast-path for an empty skip list
-    if (bucket_count == 0)
+        skip_cnts_(Pow2RoundUp(bucket_count) + (bucket_count == 0)) {
+    // fast-path for nearly empty skip list
+    if (bucket_count <= 2) {
+      auto skip_cnts_it = skip_cnts_.end();
+      switch (bucket_count) {
+        case 2:
+          *--skip_cnts_it = size_getter_(0) + size_getter_(1);
+          // fall through
+        default:
+          *--skip_cnts_it = -1;         // sentinel used for searching
+      }
       return;
+    }
 
     // Avoid unnecessary branching (and zero-assignment) overhead by using:
     // - using size_getter_ directly to initialize the last level of the tree
-    // - zeroing out the skip counts for out-of-range bucket indexes efficiently
+    // - zeroing out skip counts for out-of-range bucket indexes efficiently
     auto skip_cnts_noskip_cnt = (skip_cnts_.size() - bkt_cnt_) >> 1;
     auto skip_cnts_it = skip_cnts_.end();
     std::fill_n(skip_cnts_it - skip_cnts_noskip_cnt, skip_cnts_noskip_cnt, 0);
@@ -41,8 +50,10 @@ class ImmutableSkipList {
     size_t bkt_ind = bkt_cnt_;
     if (bkt_cnt_ & 1)
       *--skip_cnts_it = size_getter_(--bkt_ind);
-    while (bkt_ind >= 2)
-      *--skip_cnts_it = size_getter_(--bkt_ind) + size_getter_(--bkt_ind);
+    while (bkt_ind >= 2) {
+      size_t a = size_getter_(--bkt_ind), b = size_getter_(--bkt_ind);
+      *--skip_cnts_it = a + b;
+    }
 
     // initialize the skip counts in the remaining levels in linear time
     assert(skip_cnts_it - skip_cnts_.begin() == (skip_cnts_.size() >> 1));
@@ -51,6 +62,8 @@ class ImmutableSkipList {
       for (auto itr = lvl_size; itr--; )
         *--skip_cnts_it = *--skip_cnts_fast_it + *--skip_cnts_fast_it;
     }
+    assert(skip_cnts_it == ++skip_cnts_.begin());
+    *--skip_cnts_it = -1;               // sentinel used for searching
   }
 
   inline size_t bucket_count() const { return bkt_cnt_; }

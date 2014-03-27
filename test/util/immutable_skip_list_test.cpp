@@ -13,10 +13,13 @@ TEST(ImmutableSkipListTest, ConstructFull) {
   EXPECT_EQ(4, sl.skip_count(2));
   EXPECT_EQ(8, sl.skip_count(1));
 
-  ImmutableSkipList<> sl2(2);
+  struct Getter {             // returns 2 and 3 for index 0 and 1, respectively
+    size_t operator()(size_t index) const { return 2 + !!index; }
+  };
+  ImmutableSkipList<Getter> sl2(2);
   EXPECT_EQ(2, sl2.bucket_count());
   ASSERT_EQ(1, sl2.skip_count_max_index());
-  EXPECT_EQ(2, sl2.skip_count(1));
+  EXPECT_EQ(5, sl2.skip_count(1));
 }
 
 TEST(ImmutableSkipListTest, ConstructCompleteEven) {
@@ -52,5 +55,5 @@ TEST(ImmutableSkipListTest, ConstructCompleteOdd) {
 TEST(ImmutableSkipListTest, ConstructEmpty) {
   ImmutableSkipList<> sl(0);
   EXPECT_EQ(0, sl.bucket_count());
-  ASSERT_EQ(-1, sl.skip_count_max_index()); // TODO is this desired???
+  ASSERT_EQ(0, sl.skip_count_max_index());
 }
