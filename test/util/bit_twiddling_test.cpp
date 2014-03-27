@@ -1,11 +1,11 @@
 #include "bit_twiddling.hpp"
 
 template<typename T>
-class BitTwiddlingTest : public BitTwiddlingTestBase<T> {};
+class BitTwiddlingInlineTest : public BitTwiddlingTestBase<T> {};
 
-TYPED_TEST_CASE(BitTwiddlingTest, Inline);
+TYPED_TEST_CASE(BitTwiddlingInlineTest, Inline);
 
-TYPED_TEST(BitTwiddlingTest, Pow2RoundUpSizeT) {
+TYPED_TEST(BitTwiddlingInlineTest, Pow2RoundUpSizeT) {
   Pow2RoundUpWrapper<TypeParam::value> pow2_round_up;
   EXPECT_EQ(1, pow2_round_up(1));
   EXPECT_EQ(2, pow2_round_up(2));
@@ -24,7 +24,7 @@ TYPED_TEST(BitTwiddlingTest, Pow2RoundUpSizeT) {
   EXPECT_EQ(0, pow2_round_up((one << (bit_count - 1)) + 1));
 }
 
-TYPED_TEST(BitTwiddlingTest, Pow2RoundUpUnsignedShort) {
+TYPED_TEST(BitTwiddlingInlineTest, Pow2RoundUpUnsignedShort) {
   using namespace std;
   Pow2RoundUpWrapper<TypeParam::value> pow2_round_up;
   EXPECT_EQ(0, pow2_round_up(0));
@@ -42,7 +42,7 @@ TYPED_TEST(BitTwiddlingTest, Pow2RoundUpUnsignedShort) {
     ASSERT_EQ(0, pow2_round_up(i));
 }
 
-TYPED_TEST(BitTwiddlingTest, Pow2RoundUpShort) {
+TYPED_TEST(BitTwiddlingInlineTest, Pow2RoundUpShort) {
   using namespace std;
   Pow2RoundUpWrapper<TypeParam::value> pow2_round_up;
   EXPECT_EQ(0, pow2_round_up(0));
@@ -58,4 +58,20 @@ TYPED_TEST(BitTwiddlingTest, Pow2RoundUpShort) {
 
   for (i = 1; i <= i_max_half + 1; ++i)
     ASSERT_EQ(0, pow2_round_up(-i));
+}
+
+TEST(BitTwiddlingTest, FindFirstSetSizeT) {
+  EXPECT_EQ(1, FindFirstSet<size_t>(1));
+  EXPECT_EQ(2, FindFirstSet<size_t>(3));
+  EXPECT_EQ(3, FindFirstSet<size_t>(6));
+  EXPECT_EQ(53, FindFirstSet<size_t>(size_t(1) << 52));
+  EXPECT_EQ(64, FindFirstSet<size_t>(-1));
+}
+
+TEST(BitTwiddlingTest, FindFirstSetUnsignedShort) {
+  const unsigned max_bits = std::numeric_limits<unsigned short>::digits;
+  for (unsigned b = 1; b < max_bits; ++b) {
+    for (unsigned short i = 1 << (b - 1); i < (1 << b); ++i)
+      ASSERT_EQ(b, FindFirstSet(i)) << "Failed for: " << i;
+  }
 }
