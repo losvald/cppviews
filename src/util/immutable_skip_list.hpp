@@ -4,9 +4,12 @@
 #include "bit_twiddling.hpp"
 
 #include <algorithm>
+#include <utility>
 #include <vector>
 
 #include <cassert>
+
+#include <iostream>
 
 namespace {
 
@@ -21,6 +24,9 @@ struct SingleElementBucketSizeGetter {
 template<class BucketSizeGetter = SingleElementBucketSizeGetter>
 class ImmutableSkipList {
  public:
+  // position in the skiplist: (bucket_index, local_index)
+  typedef std::pair<size_t, size_t> Position;
+
   ImmutableSkipList(
       size_t bucket_count,
       const BucketSizeGetter& bucket_size_getter = BucketSizeGetter())
@@ -64,6 +70,60 @@ class ImmutableSkipList {
     }
     assert(skip_cnts_it == ++skip_cnts_.begin());
     *--skip_cnts_it = -1;               // sentinel used for searching
+  }
+
+  Position get(size_t global_index) const {
+    size_t ind = skip_cnts_.size() >> 1;
+    if (skip_cnts_[ind] <= global_index) {
+      bool asc;
+      do {
+        // unsigned height = 0;
+        size_t ind_next = ind;
+        while (skip_cnts_[ind_next >>= 1] <= global_index) {
+          assert(ind_next);
+          ind = ind_next;
+          // std::cout << "up " << skip_cnts_[ind] << std::endl;
+          // ++height;
+        }
+
+        // ind_next != (ind >> height)
+        if ((ind_next << 1) != ind)
+          break;
+
+        // std::cout << "skip " << ind + 1 << ' ' << skip_cnts_[ind] << std::endl;
+        assert(skip_cnts_[ind] <= global_index);
+        global_index -= skip_cnts_[ind++];
+      } while (true);
+
+      const size_t ind_to = skip_cnts_.size();
+      do {
+        while ((ind <<= 1) < ind_to && skip_cnts_[ind] > global_index) {
+          // std::cout << "down " << ind << ' ' << skip_cnts_[ind] << std::endl;
+        }
+        if (ind >= ind_to) {
+          ind >>= 1;
+          break;
+        }
+
+        // std::cout << "skip " << ind + 1 << ' ' << skip_cnts_[ind] << std::endl;
+        assert(skip_cnts_[ind] <= global_index);
+        global_index -= skip_cnts_[ind++];
+      } while (true);
+    }
+
+    assert(ind >= (skip_cnts_.size() >> 1));
+    assert(ind < skip_cnts_.size());
+    assert(global_index < skip_cnts_.at(ind));
+    // std::cout << ind << ' ' << global_index << ' ' << std::endl;
+    ind = (ind << 1) - skip_cnts_.size();
+
+    size_t left_size = GetSize(ind);
+    unsigned left = (global_index < left_size);
+    ind += !left;
+    global_index -= (left_size << 1) - (left_size << left);
+    // the above is equivalent to the following but without branching and mult
+    // if (!left) ind += !left, global_index -= left_size;
+    return Position(ind, global_index);
   }
 
   inline size_t bucket_count() const { return bkt_cnt_; }
