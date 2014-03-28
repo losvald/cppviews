@@ -72,58 +72,106 @@ class ImmutableSkipList {
     *--skip_cnts_it = -1;               // sentinel used for searching
   }
 
-  Position get(size_t global_index) const {
-    size_t ind = skip_cnts_.size() >> 1;
+  // Returns the position of the global_index-th element,
+  // starting at offset-th bucket.
+  Position get(size_t global_index, size_t offset = 0) const {
+#ifdef DEBUG
+    auto global_index_init = global_index;
+    size_t dir_cnts = 0, kOne = 1;
+    enum DirShiftDbg {
+      kUpShift = 0,
+      kAscShift = (sizeof(dir_cnts) * CHAR_BIT) >> 2,
+      kDownShift = kAscShift << 1,
+      kDescShift = kAscShift + kDownShift
+    };
+#define INC_DIR_DBG(dir_shift)                  \
+    (dir_cnts += kOne << dir_shift)
+#define GET_DIR_DBG(dir_shift)                                  \
+    ((dir_cnts >> (dir_shift)) & ((kOne << kAscShift) - 1))
+#ifdef PRINT_DIR_DBG
+#define CERR_DIR_DBG(ch) std::cerr << ch;
+#else
+#define CERR_DIR_DBG(ch)
+#endif  // PRINT_DIR_DBG
+#endif  // DEBUG
+
+    size_t right = (offset & 1);
+    offset &= ~1;
+    global_index += right * size_getter_(offset);
+    offset >>= 1;
+
+    size_t ind = (skip_cnts_.size() >> 1) + offset;
     if (skip_cnts_[ind] <= global_index) {
-      bool asc;
-      do {
-        // unsigned height = 0;
-        size_t ind_next = ind;
-        while (skip_cnts_[ind_next >>= 1] <= global_index) {
-          assert(ind_next);
-          ind = ind_next;
-          // std::cout << "up " << skip_cnts_[ind] << std::endl;
-          // ++height;
-        }
+      // unsigned height = 0;
+      size_t ind_next = ind;
+      while (skip_cnts_[ind_next >>= 1] <= global_index) {
+        global_index += (ind & 1) * skip_cnts_[ind & ~1];
+        ind = ind_next;
+#ifdef DEBUG
+        INC_DIR_DBG(kUpShift); CERR_DIR_DBG('>');
+#endif  // DEBUG
+      }
 
-        // ind_next != (ind >> height)
-        if ((ind_next << 1) != ind)
-          break;
+#ifdef DEBUG
+      assert(skip_cnts_[ind] <= global_index);
+      INC_DIR_DBG(kAscShift); CERR_DIR_DBG('a');
+#endif  // DEBUG
 
-        // std::cout << "skip " << ind + 1 << ' ' << skip_cnts_[ind] << std::endl;
-        assert(skip_cnts_[ind] <= global_index);
-        global_index -= skip_cnts_[ind++];
-      } while (true);
+      global_index -= skip_cnts_[ind++];
 
       const size_t ind_to = skip_cnts_.size();
       do {
         while ((ind <<= 1) < ind_to && skip_cnts_[ind] > global_index) {
-          // std::cout << "down " << ind << ' ' << skip_cnts_[ind] << std::endl;
+#ifdef DEBUG
+          INC_DIR_DBG(kDownShift); CERR_DIR_DBG('<');
+#endif  // DEBUG
         }
+
         if (ind >= ind_to) {
           ind >>= 1;
           break;
         }
 
-        // std::cout << "skip " << ind + 1 << ' ' << skip_cnts_[ind] << std::endl;
+#ifdef DEBUG
         assert(skip_cnts_[ind] <= global_index);
+        INC_DIR_DBG(kDescShift); CERR_DIR_DBG('d');
+#endif  // DEBUG
+
         global_index -= skip_cnts_[ind++];
       } while (true);
+
+#ifdef DEBUG
+      unsigned steps = GET_DIR_DBG(kUpShift) + GET_DIR_DBG(kAscShift) +
+          GET_DIR_DBG(kDownShift) + GET_DIR_DBG(kDescShift);
+#ifdef PRINT_DIR_DBG
+      std::cerr << " (" << steps << ")"
+                << ' ' << GET_DIR_DBG(kUpShift)
+                << ' ' << GET_DIR_DBG(kAscShift)
+                << ' ' << GET_DIR_DBG(kDownShift)
+                << ' ' << GET_DIR_DBG(kDescShift)
+                << std::endl;
+#endif  // PRINT_DIR_DBG
+      // Verify the debug direction counts invariant
+      assert(steps == 2 * GET_DIR_DBG(kUpShift) + 1);
+
+      // Verify that the number of step is at most lg(global_index)
+      assert((1 << (steps / 2)) <= global_index_init);
+
+#undef INC_DIR_DBG
+#undef GET_DIR_DBG
+#endif  // DEBUG
     }
 
+#ifdef MACRO
     assert(ind >= (skip_cnts_.size() >> 1));
-    assert(ind < skip_cnts_.size());
     assert(global_index < skip_cnts_.at(ind));
-    // std::cout << ind << ' ' << global_index << ' ' << std::endl;
-    ind = (ind << 1) - skip_cnts_.size();
+#endif  // MACRO
 
-    size_t left_size = GetSize(ind);
-    unsigned left = (global_index < left_size);
-    ind += !left;
-    global_index -= (left_size << 1) - (left_size << left);
-    // the above is equivalent to the following but without branching and mult
-    // if (!left) ind += !left, global_index -= left_size;
-    return Position(ind, global_index);
+    // normalize the position to be relative to a left bucket leaf
+    ind = (ind << 1) - skip_cnts_.size();  // left bucket index (left of leaf)
+    size_t left_size = size_getter_(ind);  // left bucket exists, so no GetSize
+    right = (left_size <= global_index);
+    return Position(ind + right, global_index - right * left_size);
   }
 
   inline size_t bucket_count() const { return bkt_cnt_; }

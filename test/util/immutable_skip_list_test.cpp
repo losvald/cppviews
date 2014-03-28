@@ -77,10 +77,39 @@ TEST(ImmutableSkipListTest, GetUniqueSizes) {
   } bsg;
   ImmutableSkipList<BucketSizeGetter> sl(16, bsg);
 
-  for (size_t ind = 0; ind < (1 << sl.bucket_count()) - 1; ++ind) {
+  for (size_t ind = 0; ind < (1U << sl.bucket_count()) - 1; ++ind) {
     auto p_act = sl.get(ind);
     size_t bkt_ind = FindFirstSet(ind + 1) - 1;
     decltype(p_act) p_exp(bkt_ind, ind - ((1 << bkt_ind) - 1));
     ASSERT_EQ(p_exp, p_act) << "get(" << ind << ") incorrect";
+  }
+}
+
+TEST(ImmutableSkipListTest, GetOffsetConstSizes1) {
+  ImmutableSkipList<> sl(1 << 9);
+  for (size_t off = 0; off < sl.bucket_count(); ++off) {
+    for (size_t ind = 0; ind < sl.bucket_count() - off; ++ind) {
+      auto p_act = sl.get(ind, off);
+      decltype(p_act) p_exp(ind + off, 0);
+      ASSERT_EQ(p_exp, p_act) << "get(" << ind << ", " << off << ") incorrect";
+    }
+  }
+}
+
+TEST(ImmutableSkipListTest, GetOffsetUniqueSizes) {
+  struct BucketSizeGetter {
+    size_t operator()(size_t bkt_ind) const { return 1 << bkt_ind; }
+  } bsg;
+  ImmutableSkipList<BucketSizeGetter> sl(13, bsg);
+
+  for (size_t off = 0; off < sl.bucket_count(); ++off) {
+    size_t ind_to = (1U << sl.bucket_count()) - (1 << off);
+    for (size_t ind = 0; ind < ind_to; ++ind) {
+      auto p_act = sl.get(ind, off);
+      size_t ind2 = ind + ((1 << off) - 1);
+      size_t bkt_ind = FindFirstSet(ind2 + 1) - 1;
+      decltype(p_act) p_exp(bkt_ind, ind2 - ((1 << bkt_ind) - 1));
+      ASSERT_EQ(p_exp, p_act) << "get(" << ind << ", " << off << ") incorrect";
+    }
   }
 }
