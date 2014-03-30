@@ -12,6 +12,7 @@ unittest_all_SOURCES = test.cpp \
 speedtest_all_SOURCES = test.cpp \
 	util/bit_twiddling_speedtest.cpp \
 	util/fake_pointer_speedtest.cpp \
+	util/immutable_skip_list_speedtest.cpp \
 	portion_speedtest.cpp
 
 unittest_all_LDADD = ../src/libcppviews.a -lgtest -lpthread
