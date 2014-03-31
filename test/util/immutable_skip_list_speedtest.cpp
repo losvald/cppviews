@@ -257,3 +257,30 @@ TEST_P(BigImmutableSkipListSpeedtest, Get1MRandom) {
   auto l = ImmutableSkipList<decltype(bsg_)>(bucket_count(), bsg_);
   this->GetRandom(l, 1000000);
 }
+
+class HugeImmutableSkipListSpeedtest : public ImmutableSkipListSpeedtest {};
+INSTANTIATE_TEST_CASE_P(LgBucketCountMin25, HugeImmutableSkipListSpeedtest,
+                        ::testing::Values(
+                            size_t(1) << 18,
+                            size_t(1) << 19,
+                            size_t(1) << 20,
+                            size_t(1) << 21,
+                            size_t(1) << 22));
+
+TEST_P(HugeImmutableSkipListSpeedtest, Get500KRandom) {
+  auto l = ImmutableSkipList<decltype(bsg_)>(bucket_count(), bsg_);
+  this->GetRandom(l, 500000);
+}
+
+class TinyImmutableSkipListSpeedtest : public ImmutableSkipListSpeedtest {};
+INSTANTIATE_TEST_CASE_P(LgBucketCount, TinyImmutableSkipListSpeedtest,
+                        ::testing::Values(
+                            size_t(1) << 1,
+                            size_t(1) << 2,
+                            size_t(1) << 3,
+                            size_t(1) << 4));
+
+TEST_P(TinyImmutableSkipListSpeedtest, Get200MRandom) {
+  auto l = ImmutableSkipList<decltype(bsg_)>(bucket_count(), bsg_);
+  this->GetRandom(l, 200000000);
+}

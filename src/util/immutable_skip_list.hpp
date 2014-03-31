@@ -9,7 +9,9 @@
 
 #include <cassert>
 
+#ifdef PRINT_DIR_DBG
 #include <iostream>
+#endif  // PRINT_DIR_DBG
 
 namespace {
 
@@ -100,9 +102,11 @@ class ImmutableSkipList {
     global_index += right * size_getter_(offset);
     offset >>= 1;
 
-    size_t ind = (skip_cnts_.size() >> 1) + offset;
-    if (skip_cnts_[ind] <= global_index) {
-      // unsigned height = 0;
+    const size_t ind_to = skip_cnts_.size();
+    size_t ind = (ind_to >> 1) + offset;
+    if (skip_cnts_[ind] > global_index)
+      ind <<= 1;
+    else {
       size_t ind_next = ind;
       while (skip_cnts_[ind_next >>= 1] <= global_index) {
         global_index += (ind & 1) * skip_cnts_[ind & ~1];
@@ -119,26 +123,20 @@ class ImmutableSkipList {
 
       global_index -= skip_cnts_[ind++];
 
-      const size_t ind_to = skip_cnts_.size();
-      do {
-        while ((ind <<= 1) < ind_to && skip_cnts_[ind] > global_index) {
+      if ((ind <<= 1) < ind_to) {
+        do {
 #ifdef DEBUG
           INC_DIR_DBG(kDownShift); CERR_DIR_DBG('<');
 #endif  // DEBUG
-        }
 
-        if (ind >= ind_to) {
-          ind >>= 1;
-          break;
-        }
-
+          if (skip_cnts_[ind] <= global_index) {
+            global_index -= skip_cnts_[ind++];
 #ifdef DEBUG
-        assert(skip_cnts_[ind] <= global_index);
-        INC_DIR_DBG(kDescShift); CERR_DIR_DBG('d');
+            INC_DIR_DBG(kDescShift); CERR_DIR_DBG('d');
 #endif  // DEBUG
-
-        global_index -= skip_cnts_[ind++];
-      } while (true);
+          }
+        } while ((ind <<= 1) < ind_to);
+      }
 
 #ifdef DEBUG
       unsigned steps = GET_DIR_DBG(kUpShift) + GET_DIR_DBG(kAscShift) +
@@ -162,13 +160,13 @@ class ImmutableSkipList {
 #endif  // DEBUG
     }
 
-#ifdef MACRO
-    assert(ind >= (skip_cnts_.size() >> 1));
-    assert(global_index < skip_cnts_.at(ind));
-#endif  // MACRO
+#ifdef DEBUG
+    assert(ind >= skip_cnts_.size());
+    assert(global_index < skip_cnts_.at(ind >> 1));
+#endif  // DEBUG
 
     // normalize the position to be relative to a left bucket leaf
-    ind = (ind << 1) - skip_cnts_.size();  // left bucket index (left of leaf)
+    ind -= ind_to;                 // left bucket index (left of leaf)
     size_t left_size = size_getter_(ind);  // left bucket exists, so no GetSize
     right = (left_size <= global_index);
     return Position(ind + right, global_index - right * left_size);
