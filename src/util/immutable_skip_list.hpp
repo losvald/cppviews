@@ -109,7 +109,7 @@ class ImmutableSkipList {
     else {
       size_t ind_next = ind;
       while (skip_cnts_[ind_next >>= 1] <= global_index) {
-        global_index += (ind & 1) * skip_cnts_[ind & ~1];
+        global_index += -(ind & 1) & skip_cnts_[ind_next << 1];
         ind = ind_next;
 #ifdef DEBUG
         INC_DIR_DBG(kUpShift); CERR_DIR_DBG('>');
