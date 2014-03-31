@@ -13,7 +13,7 @@
 #include <iostream>
 #endif  // PRINT_DIR_DBG
 
-namespace {
+namespace isl {
 
 struct SingleElementBucketSizeGetter {
   inline size_t operator()(size_t bucket_index) const {
@@ -21,9 +21,9 @@ struct SingleElementBucketSizeGetter {
   }
 };
 
-}  // namespace
+}  // namespace isl
 
-template<class BucketSizeGetter = SingleElementBucketSizeGetter>
+template<class BucketSizeGetter = isl::SingleElementBucketSizeGetter>
 class ImmutableSkipList {
  public:
   // position in the skiplist: (bucket_index, local_index)

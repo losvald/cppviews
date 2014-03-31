@@ -1,7 +1,6 @@
 #ifndef CPPVIEWS_TEST_UTIL_BUCKET_SEARCH_VECTOR_HPP_
 #define CPPVIEWS_TEST_UTIL_BUCKET_SEARCH_VECTOR_HPP_
 
-#include "../src/util/immutable_skip_list.hpp"
 #include "test.hpp"
 
 #include <utility>
