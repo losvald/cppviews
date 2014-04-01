@@ -34,7 +34,8 @@ class ImmutableSkipList {
       const BucketSizeGetter& bucket_size_getter = BucketSizeGetter())
       : bkt_cnt_(bucket_count),
         size_getter_(bucket_size_getter),
-        skip_cnts_(Pow2RoundUp(bucket_count) + (bucket_count == 0)) {
+        skip_cnts_(Pow2RoundUp(bucket_count) + (bucket_count == 0)),
+        skip_lvl_max_(FindFirstSet(skip_cnts_.size()) - 2) {
     // fast-path for nearly empty skip list
     if (bucket_count <= 2) {
       auto skip_cnts_it = skip_cnts_.end();
@@ -107,13 +108,25 @@ class ImmutableSkipList {
     if (skip_cnts_[ind] > global_index)
       ind <<= 1;
     else {
-      size_t ind_next = ind;
-      while (skip_cnts_[ind_next >>= 1] <= global_index) {
-        global_index += -(ind & 1) & skip_cnts_[ind_next << 1];
-        ind = ind_next;
+      if (offset == 0) {
+        unsigned ind_ls_hi = skip_lvl_max_;
+        for (unsigned ind_ls_lo = 1; ind_ls_lo < ind_ls_hi;) {
+          unsigned ind_ls_mid = (ind_ls_lo + ind_ls_hi - 1u) >> 1;
+          if (skip_cnts_[size_t(1) << ind_ls_mid] <= global_index)
+            ind_ls_hi = ind_ls_mid;
+          else
+            ind_ls_lo = ind_ls_mid + 1u;
+        }
+        ind = (size_t(1) << ind_ls_hi);
+      } else {
+        size_t ind_next = ind;
+        while (skip_cnts_[ind_next >>= 1] <= global_index) {
+          global_index += -(ind & 1) & skip_cnts_[ind_next << 1];
+          ind = ind_next;
 #ifdef DEBUG
-        INC_DIR_DBG(kUpShift); CERR_DIR_DBG('>');
+          INC_DIR_DBG(kUpShift); CERR_DIR_DBG('>');
 #endif  // DEBUG
+        }
       }
 
 #ifdef DEBUG
@@ -188,6 +201,7 @@ private:
   size_t bkt_cnt_;
   BucketSizeGetter size_getter_;
   std::vector<size_t> skip_cnts_;
+  unsigned skip_lvl_max_;
 };
 
 #endif  /* CPPVIEWS_SRC_UTIL_IMMUTABLE_SKIP_LIST_HPP_ */

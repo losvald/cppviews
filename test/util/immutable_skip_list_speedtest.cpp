@@ -267,9 +267,9 @@ INSTANTIATE_TEST_CASE_P(LgBucketCountMin25, HugeImmutableSkipListSpeedtest,
                             size_t(1) << 21,
                             size_t(1) << 22));
 
-TEST_P(HugeImmutableSkipListSpeedtest, Get500KRandom) {
+TEST_P(HugeImmutableSkipListSpeedtest, Get1500KRandom) {
   auto l = ImmutableSkipList<decltype(bsg_)>(bucket_count(), bsg_);
-  this->GetRandom(l, 500000);
+  this->GetRandom(l, 1500000);
 }
 
 class TinyImmutableSkipListSpeedtest : public ImmutableSkipListSpeedtest {};
@@ -283,4 +283,19 @@ INSTANTIATE_TEST_CASE_P(LgBucketCount, TinyImmutableSkipListSpeedtest,
 TEST_P(TinyImmutableSkipListSpeedtest, Get200MRandom) {
   auto l = ImmutableSkipList<decltype(bsg_)>(bucket_count(), bsg_);
   this->GetRandom(l, 200000000);
+}
+
+class MediImmutableSkipListSpeedtest : public ImmutableSkipListSpeedtest {};
+INSTANTIATE_TEST_CASE_P(LgBucketCount, MediImmutableSkipListSpeedtest,
+                        ::testing::Values(
+                            size_t(1) << 8,
+                            size_t(1) << 9,
+                            size_t(1) << 10,
+                            size_t(1) << 11,
+                            size_t(1) << 12,
+                            size_t(1) << 13));
+
+TEST_P(MediImmutableSkipListSpeedtest, Get6MRandom) {
+  auto l = ImmutableSkipList<decltype(bsg_)>(bucket_count(), bsg_);
+  this->GetRandom(l, 6000000);
 }
