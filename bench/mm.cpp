@@ -4,14 +4,16 @@
 //
 // W. Cochran  wcochran@vancouver.wsu.edu
 //
-// Trivially modified by Leo Osvald:
-// - read N from command line args
+// Trivially modified by Leo Osvald (losvald@purdue.edu):
+// - print average element of result matrix (prevents compiler optimizations)
+// - read N from command line args (prevents compiler optimizations)
 // - add #include <time.h> (otherwise it doesn't compile)
 // - don't run classic O(N^3) implementation used for reference
+// - print timing information to stderr, use stdout to printing checksum (avg)
+// - if second cmd args is supplied, print the resulting matrix Z (for testing)
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
 
 //
 // Classic O(N^3) square matrix multiplication.
@@ -208,7 +210,7 @@ int main(void) {
   return 0;
 }
 
-#endif
+#else
 
 void mrand(int N, int pitch, double M[]) {
   const double r = 10.0;
@@ -217,6 +219,7 @@ void mrand(int N, int pitch, double M[]) {
       M[i*pitch + j] = r*(2*drand48() - 1);
 }
 
+#include <time.h>
 #include <sys/time.h>
 
 int timeval_subtract(struct timeval *result,
@@ -233,43 +236,53 @@ void timeval_print(struct timeval *tv) {
   char buffer[30];
   time_t curtime;
 
-  printf("%ld.%06ld", (long int) tv->tv_sec, (long int) tv->tv_usec);
+  fprintf(stderr, "%ld.%06ld", (long int) tv->tv_sec, (long int) tv->tv_usec);
   curtime = tv->tv_sec;
   strftime(buffer, 30, "%m-%d-%Y  %T", localtime(&curtime));
-  printf(" = %s.%06ld\n", buffer, (long int) tv->tv_usec);
+  fprintf(stderr, " = %s.%06ld\n", buffer, (long int) tv->tv_usec);
 }
 
 int main(int argc, char *argv[]) {
   int N = atoi(argv[1]);
 
-  double *X, *Y, *Z, *Zfast;
+  double *X, *Y, *Z;
   X = (double*) malloc(N*N*sizeof(double));
   Y = (double*) malloc(N*N*sizeof(double));
-  // Z = (double*) malloc(N*N*sizeof(double));
-  Zfast = (double*) malloc(N*N*sizeof(double));
+  Z = (double*) malloc(N*N*sizeof(double));
 
   mrand(N, N, X);
   mrand(N, N, Y);
-  // mrand(N, N, Z);
-  mrand(N, N, Zfast);
 
   struct timeval tvBegin, tvEnd, tvDiff;
-
-  // gettimeofday(&tvBegin, NULL);
-  // timeval_print(&tvBegin);
-  // mmult(N, N, X, N, Y, N, Z);
-  // gettimeofday(&tvEnd, NULL);
-  // timeval_print(&tvEnd);
-  // timeval_subtract(&tvDiff, &tvEnd, &tvBegin);
-  // printf("%ld.%06ld\n", (long int) tvDiff.tv_sec, (long int) tvDiff.tv_usec);
-
   gettimeofday(&tvBegin, NULL);
   timeval_print(&tvBegin);
-  mmult_fast(N, N, X, N, Y, N, Zfast);
+  mmult_fast(N, N, X, N, Y, N, Z);
   gettimeofday(&tvEnd, NULL);
   timeval_print(&tvEnd);
   timeval_subtract(&tvDiff, &tvEnd, &tvBegin);
-  printf("%ld.%06ld\n", (long int) tvDiff.tv_sec, (long int) tvDiff.tv_usec);
+  fprintf(stderr, "%ld.%06ld\n", (long) tvDiff.tv_sec, (long) tvDiff.tv_usec);
+
+  // print the average element value to prevent compiler optimizations
+  double avg = 0;
+  double *Zfrom = Z, *Zto = Z;
+  for (int i = 0; i < N; ++i) {
+    double row_avg = 0.0;
+    for (Zto += N; Zfrom != Zto; )
+      row_avg += *Zfrom++;
+    avg += row_avg / N;
+  }
+  fprintf(stderr, "Average element: %lf\n", avg);
+
+  if (argc > 2) { // print the resulting matrix if 2nd cmd arg is supplied
+    Zfrom = Z, Zto = Z;
+    for (int i = 0; i < N; ++i) {
+      double row_avg = 0.0;
+      for (Zto += N; Zfrom != Zto; )
+        printf("%lf\n", *Zfrom++);
+    }
+  }
 
   return 0;
 }
+
+#endif
