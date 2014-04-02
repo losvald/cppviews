@@ -53,7 +53,7 @@ TEST(ImmutableSkipListTest, ConstructCompleteOdd) {
 
   ImmutableSkipList<> sl1(1);
   EXPECT_EQ(1, sl1.bucket_count());
-  ASSERT_EQ(0, sl1.skip_count_max_index()); // TODO is this desired???
+  ASSERT_EQ(1, sl1.skip_count_max_index());
 }
 
 TEST(ImmutableSkipListTest, ConstructEmpty) {

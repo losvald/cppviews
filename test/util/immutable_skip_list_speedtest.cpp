@@ -288,6 +288,10 @@ TEST_P(TinyImmutableSkipListSpeedtest, Get200MRandom) {
 class MediImmutableSkipListSpeedtest : public ImmutableSkipListSpeedtest {};
 INSTANTIATE_TEST_CASE_P(LgBucketCount, MediImmutableSkipListSpeedtest,
                         ::testing::Values(
+                            size_t(1) << 5,
+                            size_t(1) << 6,
+                            size_t(1) << 7,
+
                             size_t(1) << 8,
                             size_t(1) << 9,
                             size_t(1) << 10,

@@ -9,10 +9,6 @@
 
 #include <cassert>
 
-#ifdef PRINT_DIR_DBG
-#include <iostream>
-#endif  // PRINT_DIR_DBG
-
 namespace isl {
 
 struct SingleElementBucketSizeGetter {
@@ -34,8 +30,9 @@ class ImmutableSkipList {
       const BucketSizeGetter& bucket_size_getter = BucketSizeGetter())
       : bkt_cnt_(bucket_count),
         size_getter_(bucket_size_getter),
-        skip_cnts_(Pow2RoundUp(bucket_count) + (bucket_count == 0)),
-        skip_lvl_max_(FindFirstSet(skip_cnts_.size()) - 2) {
+        skip_cnts_(Pow2RoundUp(bucket_count) + (bucket_count < 2)),
+        skip_lvl_max_(FindFirstSet(skip_cnts_.size()) - 3u) {
+        // Note: skip_lvl_max_ is size_t(-1) for bucket_count == 0
     // fast-path for nearly empty skip list
     if (bucket_count <= 2) {
       auto skip_cnts_it = skip_cnts_.end();
@@ -78,111 +75,50 @@ class ImmutableSkipList {
   // Returns the position of the global_index-th element,
   // starting at offset-th bucket.
   Position get(size_t global_index, size_t offset = 0) const {
-#ifdef DEBUG
-    auto global_index_init = global_index;
-    size_t dir_cnts = 0, kOne = 1;
-    enum DirShiftDbg {
-      kUpShift = 0,
-      kAscShift = (sizeof(dir_cnts) * CHAR_BIT) >> 2,
-      kDownShift = kAscShift << 1,
-      kDescShift = kAscShift + kDownShift
-    };
-#define INC_DIR_DBG(dir_shift)                  \
-    (dir_cnts += kOne << dir_shift)
-#define GET_DIR_DBG(dir_shift)                                  \
-    ((dir_cnts >> (dir_shift)) & ((kOne << kAscShift) - 1))
-#ifdef PRINT_DIR_DBG
-#define CERR_DIR_DBG(ch) std::cerr << ch;
-#else
-#define CERR_DIR_DBG(ch)
-#endif  // PRINT_DIR_DBG
-#endif  // DEBUG
-
-    size_t right = (offset & 1);
-    offset &= ~1;
-    global_index += right * size_getter_(offset);
-    offset >>= 1;
-
+    // normalize the position to be relative to the bucket that is a left child
+    global_index += -(offset & 1) & size_getter_(offset & ~1);
     const size_t ind_to = skip_cnts_.size();
-    size_t ind = (ind_to >> 1) + offset;
-    if (skip_cnts_[ind] > global_index)
+    size_t ind = (ind_to + offset) >> 1;
+    if (skip_cnts_[ind] > global_index) // in offset-th bucket or its sibling
       ind <<= 1;
-    else {
-      if (offset == 0) {
-        unsigned ind_ls_hi = skip_lvl_max_;
-        for (unsigned ind_ls_lo = 1; ind_ls_lo < ind_ls_hi;) {
-          unsigned ind_ls_mid = (ind_ls_lo + ind_ls_hi - 1u) >> 1;
-          if (skip_cnts_[size_t(1) << ind_ls_mid] <= global_index)
-            ind_ls_hi = ind_ls_mid;
-          else
-            ind_ls_lo = ind_ls_mid + 1u;
-        }
-        ind = (size_t(1) << ind_ls_hi);
-      } else {
-        size_t ind_next = ind;
-        while (skip_cnts_[ind_next >>= 1] <= global_index) {
+    else {                              // otherwise, follow skip lists
+      if (offset && (offset & 0x1FFu)) { // if < 8 levels, ascend linearly
+        // (note: "offset &&" is an optimization)
+        // ascend the tree by moving up (or up-back) - O(lg N) steps
+        for (auto ind_next = ind; skip_cnts_[ind_next >>= 1] <= global_index;
+             ind = ind_next) {
+          // adjust the global_index if it was a right child (an up-back skip)
           global_index += -(ind & 1) & skip_cnts_[ind_next << 1];
-          ind = ind_next;
-#ifdef DEBUG
-          INC_DIR_DBG(kUpShift); CERR_DIR_DBG('>');
-#endif  // DEBUG
         }
+      } else {                   // otherwise, binary search is faster
+        // ascend the tree using at most lg(levels) jumps - O(lg lg N) steps
+        decltype(skip_lvl_max_) ind_rs_lo(0);
+        for (auto ind_rs_hi = skip_lvl_max_; ind_rs_lo < ind_rs_hi;) {
+          decltype(ind_rs_hi) ind_rs_mid = (ind_rs_lo + ind_rs_hi + 1u) >> 1;
+          if (skip_cnts_[ind >> ind_rs_mid] <= global_index)
+            ind_rs_lo = ind_rs_mid;
+          else
+            ind_rs_hi = ind_rs_mid - 1u;
+        }
+        ind >>= ind_rs_lo;
       }
 
-#ifdef DEBUG
-      assert(skip_cnts_[ind] <= global_index);
-      INC_DIR_DBG(kAscShift); CERR_DIR_DBG('a');
-#endif  // DEBUG
-
+      // descend the tree by moving forward-down - O(lg N) steps
       global_index -= skip_cnts_[ind++];
-
-      if ((ind <<= 1) < ind_to) {
+      if ((ind <<= 1) < ind_to) {       // optimize by unrolling 1st iteration
         do {
-#ifdef DEBUG
-          INC_DIR_DBG(kDownShift); CERR_DIR_DBG('<');
-#endif  // DEBUG
-
           if (skip_cnts_[ind] <= global_index) {
             global_index -= skip_cnts_[ind++];
-#ifdef DEBUG
-            INC_DIR_DBG(kDescShift); CERR_DIR_DBG('d');
-#endif  // DEBUG
           }
         } while ((ind <<= 1) < ind_to);
       }
+    } // for random skip of N: at most 1/4 lg lg N + 7/4 lg N steps - O(lg N)
 
-#ifdef DEBUG
-      unsigned steps = GET_DIR_DBG(kUpShift) + GET_DIR_DBG(kAscShift) +
-          GET_DIR_DBG(kDownShift) + GET_DIR_DBG(kDescShift);
-#ifdef PRINT_DIR_DBG
-      std::cerr << " (" << steps << ")"
-                << ' ' << GET_DIR_DBG(kUpShift)
-                << ' ' << GET_DIR_DBG(kAscShift)
-                << ' ' << GET_DIR_DBG(kDownShift)
-                << ' ' << GET_DIR_DBG(kDescShift)
-                << std::endl;
-#endif  // PRINT_DIR_DBG
-      // Verify the debug direction counts invariant
-      assert(steps == 2 * GET_DIR_DBG(kUpShift) + 1);
-
-      // Verify that the number of step is at most lg(global_index)
-      assert((1 << (steps / 2)) <= global_index_init);
-
-#undef INC_DIR_DBG
-#undef GET_DIR_DBG
-#endif  // DEBUG
-    }
-
-#ifdef DEBUG
-    assert(ind >= skip_cnts_.size());
-    assert(global_index < skip_cnts_.at(ind >> 1));
-#endif  // DEBUG
-
-    // normalize the position to be relative to a left bucket leaf
-    ind -= ind_to;                 // left bucket index (left of leaf)
-    size_t left_size = size_getter_(ind);  // left bucket exists, so no GetSize
-    right = (left_size <= global_index);
-    return Position(ind + right, global_index - right * left_size);
+    // normalize the position to be relative to the bucket that is a left child
+    ind -= ind_to;         // compute bucket index (out of leaf index)
+    size_t left_size = size_getter_(ind); // left bucket always exists
+    size_t right = -(left_size <= global_index);
+    return Position(ind - right, global_index - (right & left_size));
   }
 
   inline size_t bucket_count() const { return bkt_cnt_; }
@@ -194,10 +130,6 @@ class ImmutableSkipList {
   size_t skip_count_max_index() const { return skip_cnts_.size() - 1; }
 
 private:
-  inline size_t GetSize(size_t bkt_ind) const {
-    return bkt_ind < skip_cnts_.size() ? size_getter_(bkt_ind) : 0;
-  }
-
   size_t bkt_cnt_;
   BucketSizeGetter size_getter_;
   std::vector<size_t> skip_cnts_;
