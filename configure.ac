@@ -6,7 +6,7 @@ AM_INIT_AUTOMAKE([1.10 foreign -Wall no-define])
 AC_PROG_CXX
 LT_INIT
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile test/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile test/Makefile bench/Makefile])
 
 AC_LANG(C++)
 AC_LINK_IFELSE(
