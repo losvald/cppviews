@@ -1,5 +1,6 @@
 #include "../src/util/immutable_skip_list.hpp"
 #include "test.hpp"
+#include "bucket_search_vector.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -272,6 +273,11 @@ TEST_P(HugeImmutableSkipListSpeedtest, Get1500KRandom) {
   this->GetRandom(l, 1500000);
 }
 
+TEST_P(HugeImmutableSkipListSpeedtest, Get1500KRandomBucketSearchVector) {
+  auto l = BucketSearchVector<decltype(bsg_)>(bucket_count(), bsg_);
+  this->GetRandom(l, 1500000);
+}
+
 class TinyImmutableSkipListSpeedtest : public ImmutableSkipListSpeedtest {};
 INSTANTIATE_TEST_CASE_P(LgBucketCount, TinyImmutableSkipListSpeedtest,
                         ::testing::Values(
@@ -280,9 +286,14 @@ INSTANTIATE_TEST_CASE_P(LgBucketCount, TinyImmutableSkipListSpeedtest,
                             size_t(1) << 3,
                             size_t(1) << 4));
 
-TEST_P(TinyImmutableSkipListSpeedtest, Get200MRandom) {
+TEST_P(TinyImmutableSkipListSpeedtest, Get60MRandom) {
   auto l = ImmutableSkipList<decltype(bsg_)>(bucket_count(), bsg_);
-  this->GetRandom(l, 200000000);
+  this->GetRandom(l, 60000000);
+}
+
+TEST_P(TinyImmutableSkipListSpeedtest, Get60MRandomBucketSearchVector) {
+  auto l = BucketSearchVector<decltype(bsg_)>(bucket_count(), bsg_);
+  this->GetRandom(l, 60000000);
 }
 
 class MediImmutableSkipListSpeedtest : public ImmutableSkipListSpeedtest {};
@@ -301,5 +312,10 @@ INSTANTIATE_TEST_CASE_P(LgBucketCount, MediImmutableSkipListSpeedtest,
 
 TEST_P(MediImmutableSkipListSpeedtest, Get6MRandom) {
   auto l = ImmutableSkipList<decltype(bsg_)>(bucket_count(), bsg_);
+  this->GetRandom(l, 6000000);
+}
+
+TEST_P(MediImmutableSkipListSpeedtest, Get6MRandomBucketSearchVector) {
+  auto l = BucketSearchVector<decltype(bsg_)>(bucket_count(), bsg_);
   this->GetRandom(l, 6000000);
 }

@@ -1,10 +1,10 @@
 #ifndef CPPVIEWS_TEST_UTIL_BUCKET_SEARCH_VECTOR_HPP_
 #define CPPVIEWS_TEST_UTIL_BUCKET_SEARCH_VECTOR_HPP_
 
-#include "test.hpp"
-
 #include <utility>
 #include <vector>
+
+#include <cstddef>
 
 namespace bsv {
 
@@ -37,22 +37,22 @@ class BucketSearchVector {
 
   Position get(size_t global_index) const {
     size_t ind = 0;
-    for (size_t ind_hi = cum_sizes_.size() - 1; ind < ind_hi; ) {
-      size_t ind_mid = (ind + ind_hi + 1) >> 1;
+    for (size_t ind_hi = cum_sizes_.size() - 1u; ind < ind_hi; ) {
+      size_t ind_mid = (ind + ind_hi + 1u) >> 1;
       if (cum_sizes_[ind_mid] <= global_index) ind = ind_mid;
-      else ind_hi = ind_mid - 1;
+      else ind_hi = ind_mid - 1u;
     }
 
     // normalize the position to be relative to a left bucket leaf
     global_index -= cum_sizes_[ind];
     ind <<= 1;                     // left bucket index (left of leaf)
-    size_t left_size = size_getter_(ind);  // left bucket exists, so no GetSize
-    size_t right = (left_size <= global_index);
-    return Position(ind + right, global_index - right * left_size);
+    size_t left_size = size_getter_(ind);  // left bucket always exists
+    size_t right = -(left_size <= global_index);
+    return Position(ind - right, global_index - (right & left_size));
   }
 
   inline Position get(size_t global_index, size_t offset) const {
-    return get(global_index + (offset & 1) * size_getter_(offset & ~1) +
+    return get(global_index + (-(offset & 1) & size_getter_(offset & ~1)) +
                cum_sizes_[offset >> 1]);
   }
 
