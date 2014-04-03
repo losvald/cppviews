@@ -13,8 +13,16 @@
 //   if second cmd args is supplied, print the resulting matrix Z (for testing)
 // - make timing portable and reliable (use monotonic clock)
 
+#include "../src/list.hpp"
+
+#include <type_traits>
+
 #include <stdlib.h>
 #include <stdio.h>
+
+#define DECL_PV(arr) \
+  v::PortionVector<std::remove_reference<decltype(*arr)>::type, \
+                   v::Portion<decltype(arr)> >
 
 //
 // Classic O(N^3) square matrix multiplication.
@@ -28,12 +36,30 @@ void mmult(int N,
            int Xpitch, const double X[],
            int Ypitch, const double Y[],
            int Zpitch, double Z[]) {
+  v::PortionVector<const double, v::Portion<const double*> > Xportions(N);
+  for (int i = 0; i < N; ++i)
+    Xportions.Append(X + i*Xpitch, N);
+  auto Xview = MakeList(std::move(Xportions));
+
+  DECL_PV(Y) Yportions(N);
+  for (int i = 0; i < N; ++i)
+    Yportions.Append(Y + i*Ypitch, N);
+  auto Yview = MakeList(std::move(Yportions));
+
+  DECL_PV(Z) Zportions(N);
+  for (int i = 0; i < N; ++i)
+    Zportions.Append(Z + i*Zpitch, N);
+  auto Zview = MakeList(std::move(Zportions));
+
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++) {
       double sum = 0.0;
       for (int k = 0; k < N; k++)
-        sum += X[i*Xpitch + k]*Y[k*Ypitch + j];
-      Z[i*Zpitch + j] = sum;
+        sum += //X[i*Xpitch + k]*Y[k*Ypitch + j];
+            Xview.get(i*N + k) *
+            Yview.get(k*N + j);
+      // Z[i*Zpitch + j] = sum;
+      Zview.set(i*N + j, sum);
     }
 }
 
