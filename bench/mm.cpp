@@ -9,8 +9,9 @@
 // - read N from command line args (prevents compiler optimizations)
 // - add #include <time.h> (otherwise it doesn't compile)
 // - don't run classic O(N^3) implementation used for reference
-// - print timing information to stderr, use stdout to printing checksum (avg)
-// - if second cmd args is supplied, print the resulting matrix Z (for testing)
+// - print timing information to stderr, use stdout to printing checksum (avg);
+//   if second cmd args is supplied, print the resulting matrix Z (for testing)
+// - make timing portable and reliable (use monotonic clock)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -219,28 +220,7 @@ void mrand(int N, int pitch, double M[]) {
       M[i*pitch + j] = r*(2*drand48() - 1);
 }
 
-#include <time.h>
-#include <sys/time.h>
-
-int timeval_subtract(struct timeval *result,
-                     struct timeval *t2, struct timeval *t1) {
-  long int diff =
-    (t2->tv_usec + 1000000 * t2->tv_sec) -
-    (t1->tv_usec + 1000000 * t1->tv_sec);
-  result->tv_sec = diff / 1000000;
-  result->tv_usec = diff % 1000000;
-  return (diff<0);
-}
-
-void timeval_print(struct timeval *tv) {
-  char buffer[30];
-  time_t curtime;
-
-  fprintf(stderr, "%ld.%06ld", (long int) tv->tv_sec, (long int) tv->tv_usec);
-  curtime = tv->tv_sec;
-  strftime(buffer, 30, "%m-%d-%Y  %T", localtime(&curtime));
-  fprintf(stderr, " = %s.%06ld\n", buffer, (long int) tv->tv_usec);
-}
+#include <chrono>
 
 int main(int argc, char *argv[]) {
   int N = atoi(argv[1]);
@@ -253,14 +233,14 @@ int main(int argc, char *argv[]) {
   mrand(N, N, X);
   mrand(N, N, Y);
 
-  struct timeval tvBegin, tvEnd, tvDiff;
-  gettimeofday(&tvBegin, NULL);
-  timeval_print(&tvBegin);
-  mmult_fast(N, N, X, N, Y, N, Z);
-  gettimeofday(&tvEnd, NULL);
-  timeval_print(&tvEnd);
-  timeval_subtract(&tvDiff, &tvEnd, &tvBegin);
-  fprintf(stderr, "%ld.%06ld\n", (long) tvDiff.tv_sec, (long) tvDiff.tv_usec);
+  {
+    using namespace std::chrono;
+    auto tp_before = steady_clock::now();
+    mmult_fast(N, N, X, N, Y, N, Z);
+    auto tp_after = steady_clock::now();
+    fprintf(stderr, "%lf\n", 1e-9 * duration_cast<nanoseconds>(
+        tp_after - tp_before).count());
+  }
 
   // print the average element value to prevent compiler optimizations
   double avg = 0;
@@ -275,11 +255,9 @@ int main(int argc, char *argv[]) {
 
   if (argc > 2) { // print the resulting matrix if 2nd cmd arg is supplied
     Zfrom = Z, Zto = Z;
-    for (int i = 0; i < N; ++i) {
-      double row_avg = 0.0;
+    for (int i = 0; i < N; ++i)
       for (Zto += N; Zfrom != Zto; )
         printf("%lf\n", *Zfrom++);
-    }
   }
 
   return 0;
