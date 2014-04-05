@@ -69,9 +69,10 @@ class List : public View<T>, protected PortionHelper<P, T> {
  public:
   typedef typename PortionVector<T, P>::Pointer PortionPointer;
 
-  List() {}
+  // List() : indexer_(portions_) {}
   List(PortionVector<T, P>&& pv)
-      : portions_(std::forward<PortionVector<T, P> >(pv)),
+      : View<T>(portions_.size()),
+        portions_(std::forward<PortionVector<T, P> >(pv)),
         indexer_(portions_) {
     portions_.Shrink();
   }
@@ -84,17 +85,11 @@ class List : public View<T>, protected PortionHelper<P, T> {
     return indexer_(index);
   }
 
-  size_t max_size() const { return portions_.max_size(); }
-
- protected:
-
-  // ImmutableSkipList<BucketSizeGetter> positions_;
-
-  PortionVector<T, P> portions_;
-  Indexer indexer_;
-  // LinearIndexer<decltype(portions_)> indexer_;
+  inline size_t max_size() const { return portions_.max_size(); }
 
  private:
+  PortionVector<T, P> portions_;
+  Indexer indexer_;
 };
 
 template<typename T, class P>
