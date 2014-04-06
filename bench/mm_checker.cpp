@@ -2,6 +2,11 @@
 #include <cstdio>
 #include <cstdlib>
 
+bool isNaN(double var) {
+  volatile double d = var;
+  return d != d;
+}
+
 int main(int argc, char **argv) {
   const char* prog = argv[0];
   const bool quit = [&]{
@@ -23,9 +28,9 @@ int main(int argc, char **argv) {
   double exp, act;
   for (int row = 0, col = 0; (!quit || ok) &&
        fscanf(f_exp, "%lf", &exp) == 1 && fscanf(f_act, "%lf", &act) == 1;) {
-    if (fabs(exp - act) > 1e-9) {
+    if (isNaN(act) || isNaN(exp) || fabs(exp - act) > 1e-6) {
       printf("(%d, %d) not equal\n  Actual: %lf\nExpected: %lf\n", row, col,
-             exp, act);
+             act, exp);
       ok = false;
     }
     if (++row == n) ++col, row -= n;
