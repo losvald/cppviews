@@ -14,6 +14,7 @@
 // - make timing portable and reliable (use monotonic clock)
 
 #include "../src/list.hpp"
+#include "../src/util/libdivide.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -45,11 +46,12 @@ void mmult(int N,
   class Accessor {
     const double* arr_;
     const int pitch_, N_;
+    const libdivide::divider<unsigned> n_;
    public:
     Accessor(const double* arr, int pitch, int N)
-        : arr_(arr), pitch_(pitch), N_(N) {}
+        : arr_(arr), pitch_(pitch), N_(N), n_(N) {}
     inline const double* operator()(unsigned index) const {
-      int r = index / N_, c = index - r * N_;
+      unsigned r = index / n_, c = index - r * N_;
       return &arr_[r*pitch_ + c];
     }
   };
@@ -57,8 +59,9 @@ void mmult(int N,
   v::ImplicitList<const double, Accessor> Yview(Accessor(Y, Ypitch, N), N*N);
 
   // non-verbose way: 1) create an anonymous functor and pass it to MakeList
+  const libdivide::divider<unsigned> n(N);
   auto Zview = v::MakeList([=](unsigned index) {
-      int r = index / N, c = index - r * N;
+      int r = index / n, c = index - r * N;
       return &Z[r*Zpitch + c];
     }, N*N);
 
