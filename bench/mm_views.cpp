@@ -31,11 +31,11 @@ void mmult(int N,
            int Ypitch, const double Y[],
            int Zpitch, double Z[]) {
   // the slow way - using a function pointer under the hood (runtime overhead)
-  // v::ImplicitList<const double> Xview([=](size_t index) {
+  // v::ImplicitList<const double> Xview([=](int index) {
   //     int r = index / N, c = index - r * N;
   //     return &X[r*Xpitch + c];
   //   }, N*N);
-  // v::ImplicitList<const double> Yview([=](size_t index) {
+  // v::ImplicitList<const double> Yview([=](int index) {
   //     int r = index / N, c = index - r * N;
   //     return &Y[r*Ypitch + c];
   //   }, N*N);
@@ -48,7 +48,7 @@ void mmult(int N,
    public:
     Accessor(const double* arr, int pitch, int N)
         : arr_(arr), pitch_(pitch), N_(N) {}
-    inline const double* operator()(size_t index) const {
+    inline const double* operator()(unsigned index) const {
       int r = index / N_, c = index - r * N_;
       return &arr_[r*pitch_ + c];
     }
@@ -57,7 +57,7 @@ void mmult(int N,
   v::ImplicitList<const double, Accessor> Yview(Accessor(Y, Ypitch, N), N*N);
 
   // non-verbose way: 1) create an anonymous functor and pass it to MakeList
-  auto Zview = v::MakeList([=](size_t index) {
+  auto Zview = v::MakeList([=](unsigned index) {
       int r = index / N, c = index - r * N;
       return &Z[r*Zpitch + c];
     }, N*N);
