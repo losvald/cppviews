@@ -19,6 +19,28 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+template<typename T>
+class Accessor {
+  T* arr_;
+  const int kPitch_, kN_;
+  const libdivide::divider<unsigned> n_;
+ public:
+  Accessor(unsigned n, unsigned pitch, T* arr)
+      : arr_(arr), kPitch_(pitch), kN_(n), n_(n) {}
+  inline T* operator()(unsigned index) const {
+    unsigned r = index / n_, c = index - r * kN_;
+    return &arr_[r*kPitch_ + c];
+  }
+};
+
+template<typename T>
+using MatrixView = v::ImplicitList<T, Accessor<T> >;
+
+template<typename T>
+constexpr MatrixView<T> MakeMatrixView(unsigned n, unsigned pitch, T* arr) {
+  return MatrixView<T>(Accessor<T>(n, pitch, arr), n*n);
+}
+
 //
 // Classic O(N^3) square matrix multiplication.
 // Z = X*Y
@@ -28,77 +50,42 @@
 // elements at (row,col) and (row+1,col).
 //
 void mmult(int N,
-           int Xpitch, const double X[],
-           int Ypitch, const double Y[],
-           int Zpitch, double Z[]) {
-  // the slow way - using a function pointer under the hood (runtime overhead)
-  // v::ImplicitList<const double> Xview([=](int index) {
-  //     int r = index / N, c = index - r * N;
-  //     return &X[r*Xpitch + c];
-  //   }, N*N);
-  // v::ImplicitList<const double> Yview([=](int index) {
-  //     int r = index / N, c = index - r * N;
-  //     return &Y[r*Ypitch + c];
-  //   }, N*N);
-
-  // a faster way - using the template functors (no runtime overhead)
-  // the verbose way: 1) create a functor 2) create List directly using ctor
-  class Accessor {
-    const double* arr_;
-    const int pitch_, N_;
-    const libdivide::divider<unsigned> n_;
-   public:
-    Accessor(const double* arr, int pitch, int N)
-        : arr_(arr), pitch_(pitch), N_(N), n_(N) {}
-    inline const double* operator()(unsigned index) const {
-      unsigned r = index / n_, c = index - r * N_;
-      return &arr_[r*pitch_ + c];
-    }
-  };
-  v::ImplicitList<const double, Accessor> Xview(Accessor(X, Xpitch, N), N*N);
-  v::ImplicitList<const double, Accessor> Yview(Accessor(Y, Ypitch, N), N*N);
-
-  // non-verbose way: 1) create an anonymous functor and pass it to MakeList
-  const libdivide::divider<unsigned> n(N);
-  auto Zview = v::MakeList([=](unsigned index) {
-      int r = index / n, c = index - r * N;
-      return &Z[r*Zpitch + c];
-    }, N*N);
-
+           const MatrixView<const double>& Xv,
+           const MatrixView<const double>& Yv,
+           const MatrixView<double>& Zv) {
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++) {
       double sum = 0.0;
       for (int k = 0; k < N; k++)
-        sum += //X[i*Xpitch + k]*Y[k*Ypitch + j];
-            Xview.get(i*N + k) *
-            Yview.get(k*N + j);
-      // Z[i*Zpitch + j] = sum;
-      Zview.set(i*N + j, sum);
+        sum += Xv.get(i*N + k) * Yv.get(k*N + j);
+      Zv.set(i*N + j, sum);
     }
 }
 
 //
 // S = X + Y
 //
+template<class View1, class View2>
 void madd(int N,
-          int Xpitch, const double X[],
-          int Ypitch, const double Y[],
-          int Spitch, double S[]) {
+          const View1& Xv,
+          const View2& Yv,
+          const MatrixView<double>& Sv) {
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
-      S[i*Spitch + j] = X[i*Xpitch + j] + Y[i*Ypitch + j];
+      Sv.set(i*N + j, Xv.get(i*N + j) + Yv.get(i*N + j));
 }
 
 //
 // S = X - Y
 //
+template<class View1, class View2>
 void msub(int N,
-          int Xpitch, const double X[],
-          int Ypitch, const double Y[],
-          int Spitch, double S[]) {
+          const View1& Xv,
+          const View2& Yv,
+          const MatrixView<double>& Sv) {
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
-      S[i*Spitch + j] = X[i*Xpitch + j] - Y[i*Ypitch + j];
+      Sv.set(i*N + j, Xv.get(i*N + j) - Yv.get(i*N + j));
 }
 
 //
@@ -140,75 +127,86 @@ void mmult_fast(int N,
   // on hardware platform.
   //
   if (N <= 16) {
-    mmult(N, Xpitch, X, Ypitch, Y, Zpitch, Z);
+    MatrixView<const double> Xv = MakeMatrixView(N, Xpitch, X);
+    auto Yv = MakeMatrixView(N, Ypitch, Y);
+    auto Zv = MakeMatrixView(N, Zpitch, Z);
+    mmult(N, Xv, Yv, Zv);
     return;
   }
 
   const int n = N/2;      // size of sub-matrices
 
-  const double *A = X;    // A-D matrices embedded in X
-  const double *B = X + n;
-  const double *C = X + n*Xpitch;
-  const double *D = C + n;
+  // A-D matrices embedded in X
+  auto Av = MakeMatrixView(n, Xpitch, X);
+  auto Bv = MakeMatrixView(n, Xpitch, X + n);
+  auto Cv = MakeMatrixView(n, Xpitch, X + n*Xpitch);
+  auto Dv = MakeMatrixView(n, Xpitch, X + n*Xpitch + n);
 
-  const double *E = Y;    // E-H matrices embeded in Y
-  const double *F = Y + n;
-  const double *G = Y + n*Ypitch;
-  const double *H = G + n;
+  // E-H matrices embeded in Y
+  auto Ev = MakeMatrixView(n, Ypitch, Y);
+  auto Fv = MakeMatrixView(n, Ypitch, Y + n);
+  auto Gv = MakeMatrixView(n, Ypitch, Y + n*Ypitch);
+  auto Hv = MakeMatrixView(n, Ypitch, Y + n*Ypitch + n);
 
   double *P[7];   // allocate temp matrices off heap
+  std::vector<MatrixView<double> > Pv;//[7];
+  Pv.reserve(7);
   const int sz = n*n*sizeof(double);
-  for (int i = 0; i < 7; i++)
+  for (int i = 0; i < 7; i++) {
     P[i] = (double *) malloc(sz);
+    Pv.push_back(MakeMatrixView(n, n, P[i]));
+  }
   double *T = (double *) malloc(sz);
   double *U = (double *) malloc(sz);
+  MatrixView<double> Tv = MakeMatrixView(n, n, T);
+  MatrixView<double> Uv = MakeMatrixView(n, n, U);
 
   // P0 = A*(F - H);
-  msub(n, Ypitch, F, Ypitch, H, n, T);
-  mmult_fast(n, Xpitch, A, n, T, n, P[0]);
+  msub(n, Fv, Hv, Tv);
+  mmult_fast(n, Xpitch, X, n, T, n, P[0]);
 
   // P1 = (A + B)*H
-  madd(n, Xpitch, A, Xpitch, B, n, T);
-  mmult_fast(n, n, T, Ypitch, H, n, P[1]);
+  madd(n, Av, Bv, Tv);
+  mmult_fast(n, n, T, Ypitch, Y + n*Ypitch + n, n, P[1]);
 
   // P2 = (C + D)*E
-  madd(n, Xpitch, C, Xpitch, D, n, T);
-  mmult_fast(n, n, T, Ypitch, E, n, P[2]);
+  madd(n, Cv, Dv, Tv);
+  mmult_fast(n, n, T, Ypitch, Y, n, P[2]);
 
   // P3 = D*(G - E);
-  msub(n, Ypitch, G, Ypitch, E, n, T);
-  mmult_fast(n, Xpitch, D, n, T, n, P[3]);
+  msub(n, Gv, Ev, Tv);
+  mmult_fast(n, Xpitch, X + n*Xpitch + n, n, T, n, P[3]);
 
   // P4 = (A + D)*(E + H)
-  madd(n, Xpitch, A, Xpitch, D, n, T);
-  madd(n, Ypitch, E, Ypitch, H, n, U);
+  madd(n, Av, Dv, Tv);
+  madd(n, Ev, Hv, Uv);
   mmult_fast(n, n, T, n, U, n, P[4]);
 
   // P5 = (B - D)*(G + H)
-  msub(n, Xpitch, B, Xpitch, D, n, T);
-  madd(n, Ypitch, G, Ypitch, H, n, U);
+  msub(n, Bv, Dv, Tv);
+  madd(n, Gv, Hv, Uv);
   mmult_fast(n, n, T, n, U, n, P[5]);
 
   // P6 = (A - C)*(E + F)
-  msub(n, Xpitch, A, Xpitch, C, n, T);
-  madd(n, Ypitch, E, Ypitch, F, n, U);
+  msub(n, Av, Cv, Tv);
+  madd(n, Ev, Fv, Uv);
   mmult_fast(n, n, T, n, U, n, P[6]);
 
   // Z upper left = (P3 + P4) + (P5 - P1)
-  madd(n, n, P[4], n, P[3], n, T);
-  msub(n, n, P[5], n, P[1], n, U);
-  madd(n, n, T, n, U, Zpitch, Z);
+  madd(n, Pv[4], Pv[3], Tv);
+  msub(n, Pv[5], Pv[1], Uv);
+  madd(n, Tv, Uv, MakeMatrixView(n, Zpitch, Z));
 
   // Z lower left = P2 + P3
-  madd(n, n, P[2], n, P[3], Zpitch, Z + n*Zpitch);
+  madd(n, Pv[2], Pv[3], MakeMatrixView(n, Zpitch, Z + n*Zpitch));
 
   // Z upper right = P0 + P1
-  madd(n, n, P[0], n, P[1], Zpitch, Z + n);
+  madd(n, Pv[0], Pv[1], MakeMatrixView(n, Zpitch, Z + n));
 
   // Z lower right = (P0 + P4) - (P2 + P6)
-  madd(n, n, P[0], n, P[4], n, T);
-  madd(n, n, P[2], n, P[6], n, U);
-  msub(n, n, T, n, U, Zpitch, Z + n*(Zpitch + 1));
+  madd(n, Pv[0], Pv[4], Tv);
+  madd(n, Pv[2], Pv[6], Uv);
+  msub(n, Tv, Uv, MakeMatrixView(n, Zpitch, Z + n*(Zpitch + 1)));
 
   free(U);  // deallocate temp matrices
   free(T);
