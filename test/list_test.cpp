@@ -54,7 +54,8 @@ TEST(ListTest, ConstructorNonPoly) {
   EXPECT_EQ(20, l2.get(2));
 }
 
-void AssertEqualYellow(const List<const char>& l) {
+template<class L>
+void AssertEqualYellow(const L& l) {
   EXPECT_EQ('y', l.get(0));
   EXPECT_EQ('e', l.get(1));
   EXPECT_EQ('l', l.get(2));
@@ -93,4 +94,28 @@ TEST(ListTest, ConstructorPoly) {
   //        (world.cbegin(), 1)
   //        (hello_world_str + 5, 1)
   //        (world.crbegin() + 2, 4));
+
+  ImplicitList<const char> il([&](size_t index) -> const char* {
+      switch (index) {
+        case 0: return &y;
+        case 1: return hello_world_str + 1;
+        case 2: return hello_world_str + 2;
+        case 3: return hello_world_str + 3;
+        case 4: return hello_world_str + 4;
+        default: return &world[0];
+      }
+    }, 6);
+  AssertEqualYellow(il);
+
+  auto il2 = MakeList([&](size_t index) -> const char* {
+      switch (index) {
+        case 0: return &y;
+        case 1: return hello_world_str + 1;
+        case 2: return hello_world_str + 2;
+        case 3: return hello_world_str + 3;
+        case 4: return hello_world_str + 4;
+        default: return &world[0];
+      }
+    }, 6);
+  AssertEqualYellow(il2);
 }

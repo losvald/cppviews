@@ -15,14 +15,8 @@
 
 #include "../src/list.hpp"
 
-#include <type_traits>
-
 #include <stdlib.h>
 #include <stdio.h>
-
-#define DECL_PV(arr) \
-  v::PortionVector<std::remove_reference<decltype(*arr)>::type, \
-                   v::Portion<decltype(arr)> >
 
 //
 // Classic O(N^3) square matrix multiplication.
@@ -36,20 +30,37 @@ void mmult(int N,
            int Xpitch, const double X[],
            int Ypitch, const double Y[],
            int Zpitch, double Z[]) {
-  v::PortionVector<const double, v::Portion<const double*> > Xportions(N);
-  for (int i = 0; i < N; ++i)
-    Xportions.Append(X + i*Xpitch, N);
-  auto Xview = MakeList(std::move(Xportions));
+  // the slow way - using a function pointer under the hood (runtime overhead)
+  // v::ImplicitList<const double> Xview([=](size_t index) {
+  //     int r = index / N, c = index - r * N;
+  //     return &X[r*Xpitch + c];
+  //   }, N*N);
+  // v::ImplicitList<const double> Yview([=](size_t index) {
+  //     int r = index / N, c = index - r * N;
+  //     return &Y[r*Ypitch + c];
+  //   }, N*N);
 
-  DECL_PV(Y) Yportions(N);
-  for (int i = 0; i < N; ++i)
-    Yportions.Append(Y + i*Ypitch, N);
-  auto Yview = MakeList(std::move(Yportions));
+  // a faster way - using the template functors (no runtime overhead)
+  // the verbose way: 1) create a functor 2) create List directly using ctor
+  class Accessor {
+    const double* arr_;
+    const int pitch_, N_;
+   public:
+    Accessor(const double* arr, int pitch, int N)
+        : arr_(arr), pitch_(pitch), N_(N) {}
+    inline const double* operator()(size_t index) const {
+      int r = index / N_, c = index - r * N_;
+      return &arr_[r*pitch_ + c];
+    }
+  };
+  v::ImplicitList<const double, Accessor> Xview(Accessor(X, Xpitch, N), N*N);
+  v::ImplicitList<const double, Accessor> Yview(Accessor(Y, Ypitch, N), N*N);
 
-  DECL_PV(Z) Zportions(N);
-  for (int i = 0; i < N; ++i)
-    Zportions.Append(Z + i*Zpitch, N);
-  auto Zview = MakeList(std::move(Zportions));
+  // non-verbose way: 1) create an anonymous functor and pass it to MakeList
+  auto Zview = v::MakeList([=](size_t index) {
+      int r = index / N, c = index - r * N;
+      return &Z[r*Zpitch + c];
+    }, N*N);
 
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++) {

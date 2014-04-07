@@ -1,6 +1,8 @@
 #ifndef CPPVIEWS_SRC_VIEW_HPP_
 #define CPPVIEWS_SRC_VIEW_HPP_
 
+#include <numeric>
+
 #include <cstddef>
 
 namespace v {
@@ -14,7 +16,7 @@ class View {
   View() = default;
 
   size_t size() const { return size_; }
-  virtual size_t max_size() const = 0;
+  virtual size_t max_size() const { return std::numeric_limits<size_t>::max(); }
 
  protected:
   size_t size_;

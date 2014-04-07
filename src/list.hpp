@@ -7,7 +7,9 @@
 #include "util/immutable_skip_list.hpp"
 #include "util/poly_vector.hpp"
 
+#include <functional>
 #include <vector>
+#include <type_traits>
 
 namespace v {
 
@@ -92,9 +94,41 @@ class List : public View<T>, protected PortionHelper<P, T> {
   Indexer indexer_;
 };
 
+// specialization for Implicit Lists (those that do not store portions)
+template<typename T, class Accessor>
+class List<T, void, Accessor> : public View<T> {
+ public:
+  List(Accessor accessor, size_t size) : View<T>(size), accessor_(accessor) {}
+  inline void set(size_t index, const T& value) const {
+    *accessor_(index) = value;
+  }
+  inline const T& get(size_t index) const { return *accessor_(index); }
+
+ private:
+  Accessor accessor_;
+};
+
+template<typename T>
+using ListAccessorFunction = std::function<T* const(size_t)>;
+
+template<typename T, class Accessor = ListAccessorFunction<T> >
+using ImplicitList = List<T, void, Accessor>;
+
+
 template<typename T, class P>
 constexpr List<T, P> MakeList(PortionVector<T, P>&& pv) {
   return List<T, P>(std::forward<PortionVector<T, P> >(pv));
+}
+
+template<class Accessor>
+using ListAccessorValue = typename std::remove_pointer<
+  typename std::result_of<Accessor(size_t)>::type
+  >::type;
+
+template<class Accessor>
+constexpr auto MakeList(Accessor accessor, size_t size)
+    -> List<ListAccessorValue<Accessor>, void, Accessor> {
+  return List<ListAccessorValue<Accessor>, void, Accessor>(accessor, size);
 }
 
 }  // namespace v
