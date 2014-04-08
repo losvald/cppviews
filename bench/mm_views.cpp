@@ -41,6 +41,12 @@ constexpr MatrixView<T> MakeMatrixView(unsigned n, unsigned pitch, T* arr) {
   return MatrixView<T>(Accessor<T>(n, pitch, arr), n*n);
 }
 
+template<class V>
+inline typename V::DataType* ArrayBegin(const V& v) {
+  // a hack to get the address at which the underlying array begins
+  return &const_cast<typename V::DataType&>(v.get(0));
+}
+
 //
 // Classic O(N^3) square matrix multiplication.
 // Z = X*Y
@@ -50,8 +56,8 @@ constexpr MatrixView<T> MakeMatrixView(unsigned n, unsigned pitch, T* arr) {
 // elements at (row,col) and (row+1,col).
 //
 void mmult(int N,
-           const MatrixView<const double>& Xv,
-           const MatrixView<const double>& Yv,
+           const MatrixView<double>& Xv,
+           const MatrixView<double>& Yv,
            const MatrixView<double>& Zv) {
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++) {
@@ -65,10 +71,9 @@ void mmult(int N,
 //
 // S = X + Y
 //
-template<class View1, class View2>
 void madd(int N,
-          const View1& Xv,
-          const View2& Yv,
+          const MatrixView<double>& Xv,
+          const MatrixView<double>& Yv,
           const MatrixView<double>& Sv) {
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
@@ -78,10 +83,9 @@ void madd(int N,
 //
 // S = X - Y
 //
-template<class View1, class View2>
 void msub(int N,
-          const View1& Xv,
-          const View2& Yv,
+          const MatrixView<double>& Xv,
+          const MatrixView<double>& Yv,
           const MatrixView<double>& Sv) {
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
@@ -116,9 +120,9 @@ void msub(int N,
 //        -                                            -
 //
 void mmult_fast(int N,
-                int Xpitch, const double X[],
-                int Ypitch, const double Y[],
-                int Zpitch, double Z[]) {
+                const MatrixView<double>& Xv,
+                const MatrixView<double>& Yv,
+                const MatrixView<double>& Zv) {
   //
   // Recursive base case.
   // If matrices are 16x16 or smaller we just use
@@ -127,26 +131,26 @@ void mmult_fast(int N,
   // on hardware platform.
   //
   if (N <= 16) {
-    MatrixView<const double> Xv = MakeMatrixView(N, Xpitch, X);
-    auto Yv = MakeMatrixView(N, Ypitch, Y);
-    auto Zv = MakeMatrixView(N, Zpitch, Z);
     mmult(N, Xv, Yv, Zv);
     return;
   }
 
   const int n = N/2;      // size of sub-matrices
+  const int Xpitch = (&Xv.get(N) - &Xv.get(0));
+  const int Ypitch = (&Yv.get(N) - &Yv.get(0));
+  const int Zpitch = (&Zv.get(N) - &Zv.get(0));
 
   // A-D matrices embedded in X
-  auto Av = MakeMatrixView(n, Xpitch, X);
-  auto Bv = MakeMatrixView(n, Xpitch, X + n);
-  auto Cv = MakeMatrixView(n, Xpitch, X + n*Xpitch);
-  auto Dv = MakeMatrixView(n, Xpitch, X + n*Xpitch + n);
+  auto Av = MakeMatrixView(n, Xpitch, ArrayBegin(Xv));
+  auto Bv = MakeMatrixView(n, Xpitch, ArrayBegin(Xv) + n);
+  auto Cv = MakeMatrixView(n, Xpitch, ArrayBegin(Xv) + n*Xpitch);
+  auto Dv = MakeMatrixView(n, Xpitch, ArrayBegin(Xv) + n*Xpitch + n);
 
   // E-H matrices embeded in Y
-  auto Ev = MakeMatrixView(n, Ypitch, Y);
-  auto Fv = MakeMatrixView(n, Ypitch, Y + n);
-  auto Gv = MakeMatrixView(n, Ypitch, Y + n*Ypitch);
-  auto Hv = MakeMatrixView(n, Ypitch, Y + n*Ypitch + n);
+  auto Ev = MakeMatrixView(n, Ypitch, ArrayBegin(Yv));
+  auto Fv = MakeMatrixView(n, Ypitch, ArrayBegin(Yv) + n);
+  auto Gv = MakeMatrixView(n, Ypitch, ArrayBegin(Yv) + n*Ypitch);
+  auto Hv = MakeMatrixView(n, Ypitch, ArrayBegin(Yv) + n*Ypitch + n);
 
   double *P[7];   // allocate temp matrices off heap
   std::vector<MatrixView<double> > Pv;//[7];
@@ -163,50 +167,50 @@ void mmult_fast(int N,
 
   // P0 = A*(F - H);
   msub(n, Fv, Hv, Tv);
-  mmult_fast(n, Xpitch, X, n, T, n, P[0]);
+  mmult_fast(n, Av, Tv, Pv[0]);
 
   // P1 = (A + B)*H
   madd(n, Av, Bv, Tv);
-  mmult_fast(n, n, T, Ypitch, Y + n*Ypitch + n, n, P[1]);
+  mmult_fast(n, Tv, Hv, Pv[1]);
 
   // P2 = (C + D)*E
   madd(n, Cv, Dv, Tv);
-  mmult_fast(n, n, T, Ypitch, Y, n, P[2]);
+  mmult_fast(n, Tv, Ev, Pv[2]);
 
   // P3 = D*(G - E);
   msub(n, Gv, Ev, Tv);
-  mmult_fast(n, Xpitch, X + n*Xpitch + n, n, T, n, P[3]);
+  mmult_fast(n, Dv, Tv, Pv[3]);
 
   // P4 = (A + D)*(E + H)
   madd(n, Av, Dv, Tv);
   madd(n, Ev, Hv, Uv);
-  mmult_fast(n, n, T, n, U, n, P[4]);
+  mmult_fast(n, Tv, Uv, Pv[4]);
 
   // P5 = (B - D)*(G + H)
   msub(n, Bv, Dv, Tv);
   madd(n, Gv, Hv, Uv);
-  mmult_fast(n, n, T, n, U, n, P[5]);
+  mmult_fast(n, Tv, Uv, Pv[5]);
 
   // P6 = (A - C)*(E + F)
   msub(n, Av, Cv, Tv);
   madd(n, Ev, Fv, Uv);
-  mmult_fast(n, n, T, n, U, n, P[6]);
+  mmult_fast(n, Tv, Uv, Pv[6]);
 
   // Z upper left = (P3 + P4) + (P5 - P1)
   madd(n, Pv[4], Pv[3], Tv);
   msub(n, Pv[5], Pv[1], Uv);
-  madd(n, Tv, Uv, MakeMatrixView(n, Zpitch, Z));
+  madd(n, Tv, Uv, MakeMatrixView(n, Zpitch, ArrayBegin(Zv)));
 
   // Z lower left = P2 + P3
-  madd(n, Pv[2], Pv[3], MakeMatrixView(n, Zpitch, Z + n*Zpitch));
+  madd(n, Pv[2], Pv[3], MakeMatrixView(n, Zpitch, ArrayBegin(Zv) + n*Zpitch));
 
   // Z upper right = P0 + P1
-  madd(n, Pv[0], Pv[1], MakeMatrixView(n, Zpitch, Z + n));
+  madd(n, Pv[0], Pv[1], MakeMatrixView(n, Zpitch, ArrayBegin(Zv) + n));
 
   // Z lower right = (P0 + P4) - (P2 + P6)
   madd(n, Pv[0], Pv[4], Tv);
   madd(n, Pv[2], Pv[6], Uv);
-  msub(n, Tv, Uv, MakeMatrixView(n, Zpitch, Z + n*(Zpitch + 1)));
+  msub(n, Tv, Uv, MakeMatrixView(n, Zpitch, ArrayBegin(Zv) + n*(Zpitch + 1)));
 
   free(U);  // deallocate temp matrices
   free(T);
@@ -274,7 +278,8 @@ int main(int argc, char *argv[]) {
   {
     using namespace std::chrono;
     auto tp_before = steady_clock::now();
-    mmult_fast(N, N, X, N, Y, N, Z);
+    mmult_fast(N, MakeMatrixView(N, N, X), MakeMatrixView(N, N, Y),
+               MakeMatrixView(N, N, Z));
     auto tp_after = steady_clock::now();
     fprintf(stderr, "%lf\n", 1e-9 * duration_cast<nanoseconds>(
         tp_after - tp_before).count());
