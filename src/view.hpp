@@ -12,6 +12,8 @@ namespace v {
 template<typename T>
 class View {
  public:
+  typedef T DataType;
+
   View(size_t size) : size_(size) {}
   View() = default;
 
