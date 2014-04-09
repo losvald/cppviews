@@ -64,7 +64,7 @@ void mmult(int N,
       double sum = 0.0;
       for (int k = 0; k < N; k++)
         sum += Xv.get(i*N + k) * Yv.get(k*N + j);
-      Zv.set(i*N + j, sum);
+      Zv.set(sum, i*N + j);
     }
 }
 
@@ -77,7 +77,7 @@ void madd(int N,
           const MatrixView<double>& Sv) {
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
-      Sv.set(i*N + j, Xv.get(i*N + j) + Yv.get(i*N + j));
+      Sv.set(Xv.get(i*N + j) + Yv.get(i*N + j), i*N + j);
 }
 
 //
@@ -89,7 +89,7 @@ void msub(int N,
           const MatrixView<double>& Sv) {
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
-      Sv.set(i*N + j, Xv.get(i*N + j) - Yv.get(i*N + j));
+      Sv.set(Xv.get(i*N + j) - Yv.get(i*N + j), i*N + j);
 }
 
 //

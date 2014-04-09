@@ -79,7 +79,7 @@ class List : public View<T>, protected PortionHelper<P, T> {
     portions_.Shrink();
   }
 
-  inline void set(size_t index, const T& value) const {
+  inline void set(const T& value, size_t index) const {
     const_cast<T&>(this->get(index)) = value;
   }
 
@@ -99,10 +99,16 @@ template<typename T, class Accessor>
 class List<T, void, Accessor> : public View<T> {
  public:
   List(Accessor accessor, size_t size) : View<T>(size), accessor_(accessor) {}
-  inline void set(size_t index, const T& value) const {
-    *accessor_(index) = value;
+
+  template<typename... Indexes>
+  inline void set(const T& value, Indexes... indexes) const {
+    *accessor_(indexes...) = value;
   }
-  inline const T& get(size_t index) const { return *accessor_(index); }
+
+  template<typename... Indexes>
+  inline const T& get(Indexes... indexes) const {
+    return *accessor_(indexes...);
+  }
 
  private:
   Accessor accessor_;
