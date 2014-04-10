@@ -7,6 +7,7 @@
 #include "util/immutable_skip_list.hpp"
 #include "util/poly_vector.hpp"
 
+#include <array>
 #include <functional>
 #include <vector>
 #include <type_traits>
@@ -65,7 +66,7 @@ struct LogarithmicIndexer {
 
 }  // namespace
 
-template<typename T, class P = PortionBase<T>,
+template<typename T, class P = PortionBase<T>, unsigned dims = 1,
          class Indexer = LogarithmicIndexer<PortionVector<T, P> > >
 class List : public View<T>, protected PortionHelper<P, T> {
  public:
@@ -94,31 +95,56 @@ class List : public View<T>, protected PortionHelper<P, T> {
   Indexer indexer_;
 };
 
+// a variadic function that is inlined as (size1 * ... * sizeN) at compile time
+template<typename Size, typename... Sizes>
+typename std::enable_if<std::is_same<Size, size_t>::value, Size>::type
+constexpr SizeProduct(Size size, Sizes... sizes) {
+  return size * SizeProduct<Sizes...>(sizes...);
+}
+
+template<>
+size_t constexpr SizeProduct<size_t>(size_t size) { return size; }
+
 // specialization for Implicit Lists (those that do not store portions)
-template<typename T, class Accessor>
-class List<T, void, Accessor> : public View<T> {
+template<typename T, unsigned dims, class Accessor>
+class List<T, void, dims, Accessor> : public View<T> {
  public:
-  List(Accessor accessor, size_t size) : View<T>(size), accessor_(accessor) {}
+  typedef std::array<size_t, dims> Strides;
+
+  template<typename... DimSizes>
+  List(Accessor accessor, size_t size, DimSizes... sizes)
+      : View<T>(SizeProduct(size, static_cast<size_t>(sizes)...)),
+        accessor_(accessor),
+        strides_({size, static_cast<size_t>(sizes)...}) {}
 
   template<typename... Indexes>
-  inline void set(const T& value, Indexes... indexes) const {
-    *accessor_(indexes...) = value;
-  }
-
-  template<typename... Indexes>
-  inline const T& get(Indexes... indexes) const {
+  T& operator()(Indexes... indexes) const {
     return *accessor_(indexes...);
   }
 
+  template<typename... Indexes>
+  void set(const T& value, Indexes... indexes) const {
+    this->operator()(indexes...) = value;
+  }
+
+  template<typename... Indexes>
+  const T& get(Indexes... indexes) const {
+    return this->operator()(indexes...);
+  }
+
+  const Strides& strides() const { return strides_; }
+
  private:
   Accessor accessor_;
+  Strides strides_;
 };
 
 template<typename T>
 using ListAccessorFunction = std::function<T* const(size_t)>;
 
-template<typename T, class Accessor = ListAccessorFunction<T> >
-using ImplicitList = List<T, void, Accessor>;
+template<typename T, unsigned dims = 1,
+         class Accessor = ListAccessorFunction<T> >
+using ImplicitList = List<T, void, dims, Accessor>;
 
 
 template<typename T, class P>
@@ -126,15 +152,16 @@ constexpr List<T, P> MakeList(PortionVector<T, P>&& pv) {
   return List<T, P>(std::forward<PortionVector<T, P> >(pv));
 }
 
-template<class Accessor>
-using ListAccessorValue = typename std::remove_pointer<
-  typename std::result_of<Accessor(size_t)>::type
-  >::type;
-
-template<class Accessor>
-constexpr auto MakeList(Accessor accessor, size_t size)
-    -> List<ListAccessorValue<Accessor>, void, Accessor> {
-  return List<ListAccessorValue<Accessor>, void, Accessor>(accessor, size);
+template<class Accessor, typename... DimSizes>
+constexpr auto MakeList(Accessor accessor, size_t dim_size_fst,
+                        DimSizes... dim_size_rest)
+    -> List<typename std::remove_pointer<
+  decltype(accessor(dim_size_fst, dim_size_rest...))>::type,
+            void, (1 + sizeof...(DimSizes)), Accessor> {
+  return List<typename std::remove_pointer<
+    decltype(accessor(dim_size_fst, dim_size_rest...))>::type,
+              void, (1 + sizeof...(DimSizes)), Accessor>(
+                  accessor, dim_size_fst, dim_size_rest...);
 }
 
 }  // namespace v

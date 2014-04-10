@@ -14,7 +14,6 @@
 // - make timing portable and reliable (use monotonic clock)
 
 #include "../src/list.hpp"
-#include "../src/util/libdivide.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -22,29 +21,27 @@
 template<typename T>
 class Accessor {
   T* arr_;
-  const int kPitch_, kN_;
-  const libdivide::divider<unsigned> n_;
+  const int kPitch_;
  public:
-  Accessor(unsigned n, unsigned pitch, T* arr)
-      : arr_(arr), kPitch_(pitch), kN_(n), n_(n) {}
-  inline T* operator()(unsigned index) const {
-    unsigned r = index / n_, c = index - r * kN_;
+  Accessor(unsigned pitch, T* arr)
+      : arr_(arr), kPitch_(pitch) {}
+  inline T* operator()(unsigned r, unsigned c) const {
     return &arr_[r*kPitch_ + c];
   }
 };
 
 template<typename T>
-using MatrixView = v::ImplicitList<T, Accessor<T> >;
+using MatrixView = v::ImplicitList<T, 2, Accessor<T> >;
 
 template<typename T>
 constexpr MatrixView<T> MakeMatrixView(unsigned n, unsigned pitch, T* arr) {
-  return MatrixView<T>(Accessor<T>(n, pitch, arr), n*n);
+  return MatrixView<T>(Accessor<T>(pitch, arr), n, n);
 }
 
 template<class V>
 inline typename V::DataType* ArrayBegin(const V& v) {
   // a hack to get the address at which the underlying array begins
-  return &const_cast<typename V::DataType&>(v.get(0));
+  return &const_cast<typename V::DataType&>(v(0, 0));
 }
 
 //
@@ -63,8 +60,8 @@ void mmult(int N,
     for (int j = 0; j < N; j++) {
       double sum = 0.0;
       for (int k = 0; k < N; k++)
-        sum += Xv.get(i*N + k) * Yv.get(k*N + j);
-      Zv.set(sum, i*N + j);
+        sum += Xv(i, k) * Yv(k, j);
+      Zv(i, j) = sum;
     }
 }
 
@@ -77,7 +74,7 @@ void madd(int N,
           const MatrixView<double>& Sv) {
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
-      Sv.set(Xv.get(i*N + j) + Yv.get(i*N + j), i*N + j);
+      Sv(i, j) = Xv(i, j) + Yv(i, j);
 }
 
 //
@@ -89,7 +86,7 @@ void msub(int N,
           const MatrixView<double>& Sv) {
   for (int i = 0; i < N; i++)
     for (int j = 0; j < N; j++)
-      Sv.set(Xv.get(i*N + j) - Yv.get(i*N + j), i*N + j);
+      Sv(i, j) = Xv(i, j) - Yv(i, j);
 }
 
 //
@@ -136,9 +133,9 @@ void mmult_fast(int N,
   }
 
   const int n = N/2;      // size of sub-matrices
-  const int Xpitch = (&Xv.get(N) - &Xv.get(0));
-  const int Ypitch = (&Yv.get(N) - &Yv.get(0));
-  const int Zpitch = (&Zv.get(N) - &Zv.get(0));
+  const int Xpitch = (&Xv(1, 0) - &Xv(0, 0));
+  const int Ypitch = (&Yv(1, 0) - &Yv(0, 0));
+  const int Zpitch = (&Zv(1, 0) - &Zv(0, 0));
 
   // A-D matrices embedded in X
   auto Av = MakeMatrixView(n, Xpitch, ArrayBegin(Xv));
