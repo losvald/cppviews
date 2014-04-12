@@ -9,15 +9,60 @@
 
 #include <array>
 #include <functional>
-#include <vector>
 #include <type_traits>
+#include <utility>
 
 namespace v {
+
+// Sub = (<offset>, <size>)
+typedef std::pair<size_t, size_t> Sub;
 
 template<typename T, class P = PortionBase<T> >
 using PortionVector = PolyVector<P, PortionBase<T>, PortionFactory>;
 
-namespace {
+namespace list_detail {
+
+// a variadic function that is inlined as (size1 * ... * sizeN) at compile time
+template<typename Size, typename... Sizes>
+typename std::enable_if<std::is_same<Size, size_t>::value, Size>::type
+constexpr SizeProduct(Size size, Sizes... sizes) {
+  return size * SizeProduct<Sizes...>(sizes...);
+}
+
+template<>
+size_t constexpr SizeProduct<size_t>(size_t size) { return size; }
+
+template<typename T>
+constexpr size_t ZeroSize() {
+  return size_t{};
+}
+
+template <typename... Ns>
+struct Pairwise;
+
+template <>
+struct Pairwise<> {
+  template <typename R, typename F, typename T, typename... Args>
+  static R Sum0(F f, const T&, Args... sums) { return f(sums...); }
+};
+
+template <typename N0, typename... Ns>
+struct Pairwise<N0, Ns...> {
+  // returns F(num0 + std::get<0>(a), ...)
+  template <typename F, typename T>
+  static typename std::result_of<F(N0, Ns...)>::type
+  Sum(F f, N0 num0, Ns... nums, const T& a) {
+    return Pairwise<N0, Ns...>::template
+        Sum0<typename std::result_of<F(N0, Ns...)>::type>(f, num0, nums..., a);
+  }
+
+  template <typename R, typename F, typename T, typename... Args>
+  static R Sum0(F f, N0 num0, Ns... nums, const T& a, Args&&... sums) {
+    return Pairwise<Ns...>::template
+        Sum0<R>(f, nums..., a, sums...,
+                num0 + static_cast<N0>(std::get<sizeof...(Args)>(a)));
+  }
+};
 
 template<class PolyContainer,
          typename T = typename PolyContainer::Pointer::element_type::ValueType>
@@ -64,10 +109,10 @@ struct LogarithmicIndexer {
   // ImmutableSkipList<ReverseBucketSizeGetter> bwd_;
 };
 
-}  // namespace
+}  // namespace list_detail
 
 template<typename T, class P = PortionBase<T>, unsigned dims = 1,
-         class Indexer = LogarithmicIndexer<PortionVector<T, P> > >
+         class Indexer = list_detail::LogarithmicIndexer<PortionVector<T, P> > >
 class List : public View<T>, protected PortionHelper<P, T> {
  public:
   typedef typename PortionVector<T, P>::Pointer PortionPointer;
@@ -95,31 +140,46 @@ class List : public View<T>, protected PortionHelper<P, T> {
   Indexer indexer_;
 };
 
-// a variadic function that is inlined as (size1 * ... * sizeN) at compile time
-template<typename Size, typename... Sizes>
-typename std::enable_if<std::is_same<Size, size_t>::value, Size>::type
-constexpr SizeProduct(Size size, Sizes... sizes) {
-  return size * SizeProduct<Sizes...>(sizes...);
-}
-
-template<>
-size_t constexpr SizeProduct<size_t>(size_t size) { return size; }
-
 // specialization for Implicit Lists (those that do not store portions)
 template<typename T, unsigned dims, class Accessor>
 class List<T, void, dims, Accessor> : public View<T> {
  public:
   typedef std::array<size_t, dims> Strides;
 
-  template<typename... DimSizes>
-  List(Accessor accessor, size_t size, DimSizes... sizes)
-      : View<T>(SizeProduct(size, static_cast<size_t>(sizes)...)),
+  template<typename... Sizes>
+  List(Accessor accessor, size_t size, Sizes... sizes)
+      : View<T>(list_detail::SizeProduct(size, static_cast<size_t>(sizes)...)),
         accessor_(accessor),
-        strides_({size, static_cast<size_t>(sizes)...}) {}
+        strides_{{size, static_cast<size_t>(sizes)...}},
+    offsets_{{list_detail::ZeroSize<Sizes>()...}} {
+      static_assert(1 + sizeof...(Sizes) == dims,
+                    "The number of sizes does not match dims");
+  }
+
+  template<typename... Subs>
+  List(Accessor accessor, Sub sub, Subs... subs)
+      : View<T>(list_detail::SizeProduct(
+          sub.second, static_cast<Sub>(subs).second...)),
+        accessor_(accessor),
+        strides_{{sub.second, static_cast<Sub>(subs).second...}},
+    offsets_{{sub.first, static_cast<Sub>(subs).first...}} {
+      static_assert(1 + sizeof...(Subs) == dims,
+                    "The number of subs does not match dims");
+    }
+
+  template<typename... Subs>
+  List(const List& list, Sub sub, Subs... subs)
+      : List(list.accessor_, sub, subs...) {
+    // TODO make the constructor trivial by expanding offset sum at compile time
+    auto it = list.offsets_.cbegin();
+    for (auto& offset : offsets_)
+      offset += *it++;
+  }
 
   template<typename... Indexes>
   T& operator()(Indexes... indexes) const {
-    return *accessor_(indexes...);
+    return *(list_detail::Pairwise<Indexes...>::template
+             Sum(accessor_, indexes..., offsets_));
   }
 
   template<typename... Indexes>
@@ -134,9 +194,12 @@ class List<T, void, dims, Accessor> : public View<T> {
 
   const Strides& strides() const { return strides_; }
 
+  const std::array<size_t, dims>& offsets() { return offsets_; }
+
  private:
   Accessor accessor_;
   Strides strides_;
+  std::array<size_t, dims> offsets_;
 };
 
 template<typename T>
@@ -152,16 +215,25 @@ constexpr List<T, P> MakeList(PortionVector<T, P>&& pv) {
   return List<T, P>(std::forward<PortionVector<T, P> >(pv));
 }
 
-template<class Accessor, typename... DimSizes>
-constexpr auto MakeList(Accessor accessor, size_t dim_size_fst,
-                        DimSizes... dim_size_rest)
+template<class Accessor, typename... Sizes>
+constexpr auto MakeList(Accessor accessor, size_t size, Sizes... sizes)
     -> List<typename std::remove_pointer<
-  decltype(accessor(dim_size_fst, dim_size_rest...))>::type,
-            void, (1 + sizeof...(DimSizes)), Accessor> {
+  decltype(accessor(size, sizes...))>::type, void, (1 + sizeof...(Sizes)),
+            Accessor> {
   return List<typename std::remove_pointer<
-    decltype(accessor(dim_size_fst, dim_size_rest...))>::type,
-              void, (1 + sizeof...(DimSizes)), Accessor>(
-                  accessor, dim_size_fst, dim_size_rest...);
+    decltype(accessor(size, sizes...))>::type, void, (1 + sizeof...(Sizes)),
+              Accessor>(accessor, size, sizes...);
+}
+
+template<class Accessor, typename... Subs>
+constexpr auto MakeList(Accessor accessor, Sub sub, Subs... subs)
+    -> List<typename std::remove_pointer<
+  decltype(accessor(sub.first, subs.first...))>::type,
+            void, (1 + sizeof...(Subs)), Accessor> {
+  return List<typename std::remove_pointer<
+    decltype(accessor(sub.first, subs.first...))>::type,
+              void, (1 + sizeof...(Subs)), Accessor>(
+                  accessor, sub, subs...);
 }
 
 }  // namespace v

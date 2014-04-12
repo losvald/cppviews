@@ -2,8 +2,8 @@
 #include "../src/util/memory.hpp"
 #include "test.hpp"
 
+#include <algorithm>
 #include <vector>
-#include <memory>
 #include <type_traits>
 
 template<typename T>
@@ -130,4 +130,36 @@ TEST(ListTest, StridesAndSize) {
                        5, size_t(3), 2);
   EXPECT_EQ((std::array<size_t, 3>({5, 3, 2})), il3d.strides());
   EXPECT_EQ(30, il3d.size());
+}
+
+TEST(ListTest, Offsets2D) {
+  int m[3][3]; std::iota(&m[0][0], &m[0][0] + 9, 1);
+  auto il2d = MakeList([&](unsigned row, unsigned col) { return &m[row][col]; },
+                       Sub(2, 5), Sub(1, 3));
+  EXPECT_EQ(8, il2d(0, 0));
+  EXPECT_EQ(9, il2d(0, 1));
+}
+
+TEST(ListTest, Offsets3DSub) {
+  const int n = 5;
+  int m[n][n][n];
+  for (int x = 0, px = 1; x < n; ++x, px *= 2)
+    for (int y = 0, py = 1; y < n; ++y, py *= 3)
+      for (int z = 0, pz = 1; z < n; ++z, pz *= 5) {
+        m[x][y][z] = px * py * pz;
+      }
+
+  auto il3d = MakeList([&](int x, size_t y, unsigned char z) {
+      return &m[x][y][z];
+    }, Sub(2, 5), Sub(3, 3), Sub(1, 2));
+
+  EXPECT_EQ(m[2][3][1], il3d(0, 0, 0));
+  EXPECT_EQ(m[3][4][1], il3d(1, 1, 0));
+  EXPECT_EQ(m[4][3][4], il3d(2, 0, 3));
+
+  decltype(il3d) il3d_sub(il3d, Sub(1, 2), Sub(0, 2), Sub(2, 2));
+  EXPECT_EQ(m[3][3][3], il3d_sub(0, 0, 0));
+  EXPECT_EQ(m[4][4][4], il3d_sub(1, 1, 1));
+  EXPECT_EQ(m[4][3][4], il3d_sub(1, 0, 1));
+  EXPECT_EQ(m[3][4][3], il3d_sub(0, 1, 0));
 }
