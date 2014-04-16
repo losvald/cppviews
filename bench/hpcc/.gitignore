@@ -3,6 +3,7 @@ Linux/
 *.o
 /hpcc
 /hpccoutf.txt
+/hpccinf.txt
 
 *~
 \#*\#
