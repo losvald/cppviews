@@ -1,0 +1,8 @@
+bin/
+Linux/
+*.o
+/hpcc
+/hpccoutf.txt
+
+*~
+\#*\#
