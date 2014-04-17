@@ -404,7 +404,8 @@ HPCC_Finalize(HPCC_Params *params) {
   fprintf( outputFile, "sizeof_double=%d\n", (int)sizeof(double) );
   fprintf( outputFile, "sizeof_s64Int=%d\n", (int)sizeof(s64Int) );
   fprintf( outputFile, "sizeof_u64Int=%d\n", (int)sizeof(u64Int) );
-  fprintf( outputFile, "sizeof_struct_double_double=%d\n", (int)sizeof(struct{double HPCC_r,HPCC_i;}) );
+  struct dd_ {double HPCC_r,HPCC_i;};
+  fprintf( outputFile, "sizeof_struct_double_double=%d\n", (int)sizeof(dd_) );
   fprintf( outputFile, "CommWorldProcs=%d\n", commSize );
   fprintf( outputFile, "MPI_Wtick=%e\n", MPI_Wtick() );
   fprintf( outputFile, "HPL_Tflops=%g\n", params->HPLrdata.Gflops * 1e-3 );

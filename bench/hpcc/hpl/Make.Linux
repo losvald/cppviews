@@ -167,15 +167,16 @@ HPL_DEFS     = $(F2CDEFS) $(HPL_OPTS) $(HPL_INCLUDES)
 # - Compilers / linkers - Optimization flags ---------------------------
 # ----------------------------------------------------------------------
 #
-CC           = /usr/bin/gcc
+CC           = g++-4.8
 CCNOOPT      = $(HPL_DEFS)
 CCFLAGS      = $(HPL_DEFS) -fomit-frame-pointer -O3 -funroll-loops \
+	-std=c++11 -pedantic -fpermissive \
 	-DRA_VIEW_$(RA_VIEW)
 #
 # On some platforms,  it is necessary  to use the Fortran linker to find
 # the Fortran internals used in the BLAS library.
 #
-LINKER       = /usr/bin/gcc
+LINKER       = $(CC)
 LINKFLAGS    = $(CCFLAGS) -I/usr/include/mpi -lmpi
 #
 ARCHIVER     = ar

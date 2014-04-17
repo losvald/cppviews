@@ -17,9 +17,15 @@
 
 /* Common Block Declarations */
 
+#ifdef __cplusplus
+extern "C" {
+#endif  /* __cplusplus */
 struct {
     int ictxt;
 } context_;
+#ifdef __cplusplus
+}
+#endif  /* __cplusplus */
 
 #define context_1 context_
 

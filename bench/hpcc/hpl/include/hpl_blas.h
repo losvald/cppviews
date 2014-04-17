@@ -1,36 +1,36 @@
-/* 
- * -- High Performance Computing Linpack Benchmark (HPL)                
- *    HPL - 2.0 - September 10, 2008                          
- *    Antoine P. Petitet                                                
- *    University of Tennessee, Knoxville                                
- *    Innovative Computing Laboratory                                 
- *    (C) Copyright 2000-2008 All Rights Reserved                       
- *                                                                      
- * -- Copyright notice and Licensing terms:                             
- *                                                                      
+/*
+ * -- High Performance Computing Linpack Benchmark (HPL)
+ *    HPL - 2.0 - September 10, 2008
+ *    Antoine P. Petitet
+ *    University of Tennessee, Knoxville
+ *    Innovative Computing Laboratory
+ *    (C) Copyright 2000-2008 All Rights Reserved
+ *
+ * -- Copyright notice and Licensing terms:
+ *
  * Redistribution  and  use in  source and binary forms, with or without
  * modification, are  permitted provided  that the following  conditions
- * are met:                                                             
- *                                                                      
+ * are met:
+ *
  * 1. Redistributions  of  source  code  must retain the above copyright
- * notice, this list of conditions and the following disclaimer.        
- *                                                                      
+ * notice, this list of conditions and the following disclaimer.
+ *
  * 2. Redistributions in binary form must reproduce  the above copyright
  * notice, this list of conditions,  and the following disclaimer in the
- * documentation and/or other materials provided with the distribution. 
- *                                                                      
+ * documentation and/or other materials provided with the distribution.
+ *
  * 3. All  advertising  materials  mentioning  features  or  use of this
- * software must display the following acknowledgement:                 
+ * software must display the following acknowledgement:
  * This  product  includes  software  developed  at  the  University  of
- * Tennessee, Knoxville, Innovative Computing Laboratory.             
- *                                                                      
+ * Tennessee, Knoxville, Innovative Computing Laboratory.
+ *
  * 4. The name of the  University,  the name of the  Laboratory,  or the
  * names  of  its  contributors  may  not  be used to endorse or promote
  * products  derived   from   this  software  without  specific  written
- * permission.                                                          
- *                                                                      
- * -- Disclaimer:                                                       
- *                                                                      
+ * permission.
+ *
+ * -- Disclaimer:
+ *
  * THIS  SOFTWARE  IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,  INCLUDING,  BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -41,8 +41,8 @@
  * DATA OR PROFITS; OR BUSINESS INTERRUPTION)  HOWEVER CAUSED AND ON ANY
  * THEORY OF LIABILITY, WHETHER IN CONTRACT,  STRICT LIABILITY,  OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
- */ 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 #ifndef HPL_BLAS_H
 #define HPL_BLAS_H
 /*
@@ -65,7 +65,7 @@ enum HPL_UPLO
 enum HPL_DIAG
 {  HplNonUnit  = 131,  HplUnit         = 132 };
 enum HPL_SIDE
-{  HplLeft     = 141,  HplRight        = 142 }; 
+{  HplLeft     = 141,  HplRight        = 142 };
 
 #ifdef HPL_CALL_CBLAS
 /*
@@ -76,24 +76,24 @@ enum HPL_SIDE
  * ---------------------------------------------------------------------
  */
 #define    CBLAS_INDEX         int
- 
+
 #define    CBLAS_ORDER         HPL_ORDER
 #define    CblasRowMajor       HplRowMajor
 #define    CblasColMajor       HplColMajor
- 
+
 #define    CBLAS_TRANSPOSE     HPL_TRANS
 #define    CblasNoTrans        HplNoTrans
 #define    CblasTrans          HplTrans
 #define    CblasConjTrans      HplConjTrans
- 
+
 #define    CBLAS_UPLO          HPL_UPLO
 #define    CblasUpper          HplUpper
 #define    CblasLower          HplLower
- 
+
 #define    CBLAS_DIAG          HPL_DIAG
 #define    CblasNonUnit        HplNonUnit
 #define    CblasUnit           HplUnit
- 
+
 #define    CBLAS_SIDE          HPL_SIDE
 #define    CblasLeft           HplLeft
 #define    CblasRight          HplRight
@@ -102,6 +102,9 @@ enum HPL_SIDE
  * CBLAS Function prototypes
  * ---------------------------------------------------------------------
  */
+#ifdef __cplusplus
+extern "C" {
+#endif  /* __cplusplus */
 CBLAS_INDEX       cblas_idamax
 STDC_ARGS(
 (  const int,       const double *,  const int ) );
@@ -154,6 +157,9 @@ STDC_ARGS(
    const enum CBLAS_DIAG,            const int,       const int,
    const double,    const double *,  const int,       double *,
    const int ) );
+#ifdef __cplusplus
+}
+#endif  /* __cplusplus */
 /*
  * ---------------------------------------------------------------------
  * HPL C BLAS macro definition
@@ -265,20 +271,20 @@ STDC_ARGS(
  *          SUBROUTINE DGEMM(...)          DGEMM(...)
  */
 #ifdef CRAY_BLAS
-                                                                                
+
 #define    F77dswap               SSWAP
 #define    F77dscal               SSCAL
 #define    F77dcopy               SCOPY
 #define    F77daxpy               SAXPY
 #define    F77idamax              ISAMAX
-                                                                                
+
 #define    F77dgemv               SGEMV
 #define    F77dtrsv               STRSV
 #define    F77dger                SGER
-                                                                                
+
 #define    F77dgemm               SGEMM
 #define    F77dtrsm               STRSM
-                                                                                
+
 #else
 
 #define    F77dswap               DSWAP
@@ -336,14 +342,14 @@ STDC_ARGS(
 #define    F77dcopy               dcopy_
 #define    F77daxpy               daxpy_
 #define    F77idamax              idamax_
- 
+
 #define    F77dgemv               dgemv_
 #define    F77dtrsv               dtrsv_
 #define    F77dger                dger_
- 
+
 #define    F77dgemm               dgemm_
 #define    F77dtrsm               dtrsm_
- 
+
 #endif
 /*
  * ---------------------------------------------------------------------
@@ -412,7 +418,7 @@ typedef struct { char *cp; F77_INTEGER len; } F77_CHAR;
 #define    F77_VINOUT_DECL     double *        /* input/output matrix */
 #define    F77_MIN_DECL        const double *         /* input matrix */
 #define    F77_MINOUT_DECL     double *        /* input/output matrix */
- 
+
 #ifdef CRAY_PVP_ENV                      /* Type of FORTRAN functions */
 #define    F77_VOID_FUN        extern fortran void      /* subroutine */
 #define    F77_INT_FUN         extern fortran int /* integer function */
