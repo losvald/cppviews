@@ -3,11 +3,22 @@ import sys
 
 TIME_RE = re.compile("(CPU|Real) time used\s+=\s+(\S+)")
 UPDATES_RE = re.compile(".*Number of updates[^=]+=\s+(\S+)")
+GUPS_RE = re.compile("(\S+) Billion")
 
 def main(argv):
+	"""Parses the hpccinf.txt file given as command line argument.
+
+	The output format is:
+	ra[_<VIEW_IFDEF>] (Star|Single)(|LCG) <TAB> <GUP/s>
+	ra[_<VIEW_IFDEF>] (Star|Single)(|LCG) <UP> <TAB TAB> <REAL_TIME> <USER_TIME>
+
+	where (G)UP stands for (giga)updates.
+	"""
 	if len(argv) <= 1:
-		print >> sys.stderr, "Usage: python %s HPCCINF_TXT" % argv[0]
+		sys.stderr.write("Usage: python %s HPCCINF_TXT [VIEW_IFDEF]\n" %
+						 argv[0])
 		return 1
+	key = "ra" + ("_%s" % argv[2].lower() if len(argv) > 2 else "")
 
 	section = None
 	def parse(re_object):
@@ -25,8 +36,10 @@ def main(argv):
 			elif line.startswith("End"):
 				times = dict(parse(TIME_RE))
 				update_cnt = list(parse(UPDATES_RE))[0][0]
-				print "ra %-10s %10s\t\t%s\t%s" % (
-					name.replace("RandomAccess", ""), update_cnt,
+				name = name.replace("RandomAccess", "")
+				print "%s %-10s\t%s" % (key, name, list(parse(GUPS_RE))[0][0])
+				print "%s %-10s %10s\t\t%s\t%s" % (
+					key, name, update_cnt,
 					times['Real'], times['CPU'])
 				# print '\n'.join(section)
 				section = None

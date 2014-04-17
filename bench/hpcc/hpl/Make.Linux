@@ -169,7 +169,8 @@ HPL_DEFS     = $(F2CDEFS) $(HPL_OPTS) $(HPL_INCLUDES)
 #
 CC           = /usr/bin/gcc
 CCNOOPT      = $(HPL_DEFS)
-CCFLAGS      = $(HPL_DEFS) -fomit-frame-pointer -O3 -funroll-loops
+CCFLAGS      = $(HPL_DEFS) -fomit-frame-pointer -O3 -funroll-loops \
+	-DRA_VIEW_$(RA_VIEW)
 #
 # On some platforms,  it is necessary  to use the Fortran linker to find
 # the Fortran internals used in the BLAS library.
