@@ -3,7 +3,8 @@
 
 #include <array>
 
-template<typename T, size_t kSize, unsigned kChunkSizeLog>
+template<typename T, size_t kSize, unsigned kChunkSizeLog,
+         class Alloc = std::allocator<T> >
 class ChunkedArray {
  public:
   static constexpr size_t kChunkSize = size_t(1) << kChunkSizeLog;
@@ -11,14 +12,16 @@ class ChunkedArray {
 
   ChunkedArray() {
     for (auto i = 0; i < kFullChunkCount; ++i)
-      chunks_[i] = new T[kChunkSize];
+      chunks_[i] = alloc_.allocate(kChunkSize);
     if (kFullChunkCount != kChunkCount)
-      chunks_.back() = new T[kSize & (kChunkSize - 1)];
+      chunks_.back() = alloc_.allocate(kSize & (kChunkSize - 1));
   }
 
   ~ChunkedArray() {
-    for (auto c : chunks_)
-      delete[] c;
+    for (auto i = 0; i < kFullChunkCount; ++i)
+      alloc_.deallocate(chunks_[i], kChunkSize);
+    if (kFullChunkCount != kChunkCount)
+      alloc_.deallocate(chunks_.back(), (kSize & (kChunkSize - 1)));
   }
 
   const T& operator[](size_t index) const {
@@ -41,6 +44,7 @@ class ChunkedArray {
 
  private:
   static constexpr size_t kFullChunkCount = kSize >> kChunkSizeLog;
+  Alloc alloc_;
 
   std::array<T*, kChunkCount> chunks_;
 };
