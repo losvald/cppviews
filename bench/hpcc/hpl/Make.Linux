@@ -171,7 +171,7 @@ CC           = g++-4.8
 CCNOOPT      = $(HPL_DEFS)
 CCFLAGS      = $(HPL_DEFS) -fomit-frame-pointer -O3 -funroll-loops \
 	-std=c++11 -pedantic -fpermissive \
-	-DRA_VIEW_$(RA_VIEW)
+	-DRA_VIEW_$(RA_VIEW) $(RA_VIEW_DEFINES)
 #
 # On some platforms,  it is necessary  to use the Fortran linker to find
 # the Fortran internals used in the BLAS library.

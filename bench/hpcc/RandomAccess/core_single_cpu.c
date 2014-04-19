@@ -46,12 +46,19 @@
 
 #include <hpcc.h>
 #include "RandomAccess.h"
+#include "view.h"
 
 /* Number of updates to table (suggested: 4x number of table entries) */
 #define NUPDATE (4 * TableSize)
 
 static void
-RandomAccessUpdate(u64Int TableSize, u64Int *Table) {
+RandomAccessUpdate(u64Int TableSize,
+#ifndef RA_VIEW_CHUNKED
+                   u64Int *
+#else
+                   ChunkedView&
+#endif  // !defined(RA_VIEW_CHUNKED)
+                   Table) {
   u64Int i;
   u64Int ran[128];              /* Current random numbers */
   int j;
@@ -87,7 +94,12 @@ HPCC_RandomAccess(HPCC_Params *params, int doIO, double *GUPs, int *failure) {
   double cputime;               /* CPU time to update table */
   double realtime;              /* Real time to update table */
   double totalMem;
-  u64Int *Table;
+#ifndef RA_VIEW_CHUNKED
+  u64Int *
+#else
+  ChunkedView
+#endif  // !defined(RA_VIEW_CHUNKED)
+      Table;
   u64Int logTableSize, TableSize;
   FILE *outFile = NULL;
 
@@ -110,6 +122,7 @@ HPCC_RandomAccess(HPCC_Params *params, int doIO, double *GUPs, int *failure) {
        totalMem *= 0.5, logTableSize++, TableSize <<= 1)
     ; /* EMPTY */
 
+#ifndef RA_VIEW_CHUNKED
   Table = HPCC_XMALLOC( u64Int, TableSize );
   if (! Table) {
     if (doIO) {
@@ -118,6 +131,11 @@ HPCC_RandomAccess(HPCC_Params *params, int doIO, double *GUPs, int *failure) {
     }
     return 1;
   }
+#else
+  Table.Resize(TableSize >> RA_CHUNK_SIZE_LOG);
+  if (Table.size() != TableSize)
+    throw "BUG: incorrect Table size";
+#endif  // !defined(RA_VIEW_CHUNKED)
   params->RandomAccess_N = (s64Int)TableSize;
 
   /* Print parameters for run */
@@ -168,7 +186,9 @@ HPCC_RandomAccess(HPCC_Params *params, int doIO, double *GUPs, int *failure) {
   if (temp <= 0.01*TableSize) *failure = 0;
   else *failure = 1;
 
+#ifndef RA_VIEW_CHUNKED
   HPCC_free( Table );
+#endif  // !defined(RA_VIEW_CHUNKED)
 
   if (doIO) {
     fflush( outFile );
