@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <memory>
 
 template<typename T, unsigned kChunkSizeLog, size_t kSize = 0,
          class Alloc = std::allocator<T> >
@@ -13,16 +14,16 @@ class ChunkedArray {
 
   ChunkedArray() {
     for (auto i = 0; i < kFullChunkCount; ++i)
-      chunks_[i] = alloc_.allocate(kChunkSize);
+      chunks_[i] = AllocTraits::allocate(alloc_, kChunkSize);
     if (kFullChunkCount != kChunkCount)
-      chunks_.back() = alloc_.allocate(kSize & (kChunkSize - 1));
+      chunks_.back() = AllocTraits::allocate(alloc_, kSize & (kChunkSize - 1));
   }
 
   ~ChunkedArray() {
     for (auto i = 0; i < kFullChunkCount; ++i)
-      alloc_.deallocate(chunks_[i], kChunkSize);
+      AllocTraits::deallocate(alloc_, chunks_[i], kChunkSize);
     if (kFullChunkCount != kChunkCount)
-      alloc_.deallocate(chunks_.back(), (kSize & (kChunkSize - 1)));
+      AllocTraits::deallocate(alloc_, chunks_.back(), kSize & (kChunkSize - 1));
   }
 
   const T& operator[](size_t index) const {
@@ -44,6 +45,8 @@ class ChunkedArray {
   static constexpr size_t size() { return kSize; }
 
  private:
+  typedef std::allocator_traits<Alloc> AllocTraits;
+
   static constexpr size_t kFullChunkCount = kSize >> kChunkSizeLog;
   Alloc alloc_;
 
@@ -83,7 +86,7 @@ class ChunkedArray<T, kChunkSizeLog, 0, Alloc> {
     this->DeallocateChunks(chunk_count);
     T** chunks = new T*[chunk_count];
     for (auto i = chunk_count_; i < chunk_count; ++i)
-      chunks[i] = alloc_.allocate(kChunkSize);
+      chunks[i] = AllocTraits::allocate(alloc_, kChunkSize);
     std::copy_n(chunks_, std::min(chunk_count_, chunk_count), chunks);
     delete[] chunks_;
     chunks_ = chunks;
@@ -93,9 +96,11 @@ class ChunkedArray<T, kChunkSizeLog, 0, Alloc> {
   size_t size() const { return chunk_count_ << kChunkSizeLog; }
 
  private:
+  typedef std::allocator_traits<Alloc> AllocTraits;
+
   void DeallocateChunks(size_t offset) {
     for (auto i = offset; i < chunk_count_; ++i)
-      alloc_.deallocate(chunks_[i], kChunkSize);
+      AllocTraits::deallocate(alloc_, chunks_[i], kChunkSize);
   }
 
   Alloc alloc_;
