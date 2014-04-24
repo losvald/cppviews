@@ -5,6 +5,7 @@
 #include "portion_helper.hpp"
 #include "view.hpp"
 #include "util/immutable_skip_list.hpp"
+#include "util/intseq.hpp"
 #include "util/poly_vector.hpp"
 
 #include <array>
@@ -36,6 +37,9 @@ template<typename T>
 constexpr size_t ZeroSize() {
   return size_t{};
 }
+
+template<size_t T>
+constexpr size_t ZeroSize() { return size_t{}; }
 
 template <typename... Ns>
 struct Pairwise;
@@ -96,6 +100,26 @@ struct LogarithmicIndexer {
     return bsg_.portions_[pos.first].get(pos.second);
   }
 
+  class Iterator : public std::iterator<std::forward_iterator_tag, T>,
+                   public ViewIterator<T> {
+   public:
+    Iterator(const LogarithmicIndexer* indexer, size_t index)
+        : indexer_(indexer),
+          index_(index) {}
+    Iterator(const Iterator&) = default;
+    V_DEF_VIEW_ITER_METHODS(Iterator, this);
+   protected:
+    void Increment() { ++index_; }
+    // bool Equals(const ViewIterator<T>& other) const {
+      // TODO:
+      // return indexer_ == other.indexer_ && index_ == other.index_;
+    // }
+    T& ref() const { return const_cast<T&>((*indexer_)(index_)); }
+   private:
+    const LogarithmicIndexer* indexer_;
+    size_t index_;
+  };
+
  private:
   struct BucketSizeGetter {
     const PolyContainer& portions_;
@@ -116,6 +140,7 @@ template<typename T, class P = PortionBase<T>, unsigned dims = 1,
 class List : public View<T>, protected PortionHelper<P, T> {
  public:
   typedef typename PortionVector<T, P>::Pointer PortionPointer;
+  typedef typename Indexer::Iterator Iterator;
 
   // List() : indexer_(portions_) {}
   List(PortionVector<T, P>&& pv)
@@ -135,6 +160,10 @@ class List : public View<T>, protected PortionHelper<P, T> {
 
   inline size_t max_size() const { return portions_.max_size(); }
 
+  typename View<T>::Iterator begin() const {
+    return new Iterator(&indexer_, 0);
+  }
+
  private:
   PortionVector<T, P> portions_;
   Indexer indexer_;
@@ -145,6 +174,44 @@ template<typename T, unsigned dims, class Accessor>
 class List<T, void, dims, Accessor> : public View<T> {
  public:
   typedef std::array<size_t, dims> Strides;
+
+  class Iterator : public std::iterator<std::random_access_iterator_tag, T>,
+                   public ViewIterator<T> {
+   public:
+    Iterator(const Iterator&) = default;
+    Iterator(Iterator&&) = default;
+    template<typename... Sizes>
+    Iterator(const List* list, size_t index, Sizes... indexes)
+        : list_(list),
+          indexes_{{index, static_cast<size_t>(indexes)...}} {
+      // TODO:
+    }
+
+    V_DEF_VIEW_ITER_METHODS(Iterator, this);
+
+    void Increment() {
+      if (++indexes_.back() >= list_->strides_.back()) {
+        indexes_.back() = 0;
+        // TODO: use a constexpr function that unrolls the loop at compile time
+        for (int dim = dims - 1; --dim >= 0; ) {
+          if (++indexes_[dim] < list_->strides_[dim])
+            break;
+          indexes_[dim] = 0;
+        }
+      }
+    }
+
+    T& ref() const { return ref(cpp14::make_index_sequence<dims>()); }
+
+   private:
+    template<size_t... Indexes>
+    T& ref(cpp14::index_sequence<Indexes...>) const {
+      return (*list_)(std::get<Indexes>(indexes_)...);
+    }
+
+    const List* list_;
+    std::array<size_t, dims> indexes_;
+  };
 
   template<typename... Sizes>
   List(Accessor accessor, size_t size, Sizes... sizes)
@@ -196,7 +263,16 @@ class List<T, void, dims, Accessor> : public View<T> {
 
   const std::array<size_t, dims>& offsets() { return offsets_; }
 
+  typename View<T>::Iterator begin() const {
+    return begin(cpp14::make_index_sequence<dims>());
+  }
+
  private:
+  template<size_t... Indexes>
+  Iterator* begin(cpp14::index_sequence<Indexes...>) const {
+    return new Iterator(this, list_detail::ZeroSize<Indexes>()...);
+  }
+
   Accessor accessor_;
   Strides strides_;
   std::array<size_t, dims> offsets_;

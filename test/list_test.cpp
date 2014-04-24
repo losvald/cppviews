@@ -52,6 +52,13 @@ TEST(ListTest, ConstructorNonPoly) {
   EXPECT_EQ(40, l2.get(0));
   EXPECT_EQ(10, l2.get(1));
   EXPECT_EQ(20, l2.get(2));
+
+  View<int>::Iterator l3_vit(l3.begin());
+  EXPECT_EQ(40, *l3_vit++);
+  EXPECT_EQ(10, *l3_vit);
+  *l3_vit = 100;
+  EXPECT_EQ(20, *++l3_vit);
+  EXPECT_EQ(100, l.get(1));
 }
 
 template<class L>
@@ -88,6 +95,11 @@ TEST(ListTest, ConstructorPoly) {
       .Append(world.crbegin() + 2, 4));
   AssertEqualYellow(l);
 
+  View<const char>::Iterator l_vit(l.begin());
+  EXPECT_EQ('y', *l_vit++);
+  EXPECT_EQ('e', *l_vit);
+  EXPECT_EQ('l', *++l_vit);
+
   // using a macro, we might simplify it to
   // V_LIST(const char, l,
   //        (hello_world_str + 1, 4)
@@ -118,6 +130,16 @@ TEST(ListTest, ConstructorPoly) {
       }
     }, 6);
   AssertEqualYellow(il2);
+
+  auto it2 = il2.begin();
+  EXPECT_EQ(y, *it2);
+  EXPECT_EQ(&y, &*it2++);
+  EXPECT_EQ(hello_world_str + 1, &*it2);
+  EXPECT_EQ(hello_world_str + 2, &*++it2);
+  ++it2;
+  ++it2;
+  EXPECT_EQ(&world[0], &*++it2);
+  // EXPECT_EQ(il2.end(), it2);
 }
 
 TEST(ListTest, StridesAndSize) {
@@ -157,9 +179,34 @@ TEST(ListTest, Offsets3DSub) {
   EXPECT_EQ(m[3][4][1], il3d(1, 1, 0));
   EXPECT_EQ(m[4][3][4], il3d(2, 0, 3));
 
+  auto it = il3d.begin();
+  for (int i = 0; i < 3; ++i)
+    ++it;
+  EXPECT_EQ(il3d(0, 1, 1), *it);
+  for (int i = 0; i < 3; ++i)
+    ++it;
+  EXPECT_EQ(il3d(1, 0, 0), *it);
+
   decltype(il3d) il3d_sub(il3d, Sub(1, 2), Sub(0, 2), Sub(2, 2));
   EXPECT_EQ(m[3][3][3], il3d_sub(0, 0, 0));
   EXPECT_EQ(m[4][4][4], il3d_sub(1, 1, 1));
   EXPECT_EQ(m[4][3][4], il3d_sub(1, 0, 1));
   EXPECT_EQ(m[3][4][3], il3d_sub(0, 1, 0));
+
+  auto sub_it = il3d_sub.begin();
+  EXPECT_EQ(il3d_sub(0, 0, 0), *sub_it++);
+  EXPECT_EQ(il3d_sub(0, 0, 1), *sub_it++);
+  EXPECT_EQ(il3d_sub(0, 1, 0), *sub_it++);
+  EXPECT_EQ(il3d_sub(0, 1, 1), *sub_it++);
+  EXPECT_EQ(il3d_sub(1, 0, 0), *sub_it++);
+  EXPECT_EQ(il3d_sub(1, 0, 1), *sub_it++);
+  EXPECT_EQ(il3d_sub(1, 1, 0), *sub_it++);
+  EXPECT_EQ(il3d_sub(1, 1, 1), *sub_it++);
+
+  // TODO: change to "sub_it = il3d_sub.begin()" after implementing operator=
+  View<int>::Iterator sub_it2(il3d_sub.begin());
+  std::fill_n(sub_it2, 3, 7);
+  for (int i = 0; i < 3; ++i)
+    ASSERT_EQ(7, *sub_it2++);
+  ASSERT_NE(7, *sub_it2);
 }
