@@ -1,6 +1,8 @@
 #ifndef CPPVIEWS_TEST_HPP_
 #define CPPVIEWS_TEST_HPP_
 
+#include <gtest/gtest.h>
+
 #include <cstdlib>
 
 #include <algorithm>
@@ -11,10 +13,7 @@
 #include <string>
 #include <utility>
 
-#include <gtest/gtest.h>
-
-#include <../src/view.hpp>
-
+namespace v {}
 using namespace v;
 
 template<class InputIterator1, class InputIterator2, class Equals>

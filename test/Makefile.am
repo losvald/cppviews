@@ -7,6 +7,7 @@ unittest_all_SOURCES = test.cpp \
 	util/chunked_array_test.cpp \
 	util/fake_pointer_test.cpp \
 	util/immutable_skip_list_test.cpp \
+	util/intseq_test.cpp \
 	util/poly_vector_test.cpp \
 	portion_test.cpp \
 	list_test.cpp
