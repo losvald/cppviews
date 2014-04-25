@@ -99,6 +99,9 @@ TEST(ListTest, ConstructorPoly) {
   EXPECT_EQ('y', *l_vit++);
   EXPECT_EQ('e', *l_vit);
   EXPECT_EQ('l', *++l_vit);
+  EXPECT_EQ('l', *++l_vit);
+  EXPECT_EQ('o', *++l_vit);
+  EXPECT_EQ('w', *++l_vit);
 
   // using a macro, we might simplify it to
   // V_LIST(const char, l,
@@ -194,7 +197,9 @@ TEST(ListTest, Offsets3DSub) {
   EXPECT_EQ(m[3][4][3], il3d_sub(0, 1, 0));
 
   auto sub_it = il3d_sub.begin();
+  EXPECT_EQ(il3d_sub.begin(), sub_it);
   EXPECT_EQ(il3d_sub(0, 0, 0), *sub_it++);
+  EXPECT_NE(il3d_sub.begin(), sub_it);
   EXPECT_EQ(il3d_sub(0, 0, 1), *sub_it++);
   EXPECT_EQ(il3d_sub(0, 1, 0), *sub_it++);
   EXPECT_EQ(il3d_sub(0, 1, 1), *sub_it++);
@@ -202,11 +207,26 @@ TEST(ListTest, Offsets3DSub) {
   EXPECT_EQ(il3d_sub(1, 0, 1), *sub_it++);
   EXPECT_EQ(il3d_sub(1, 1, 0), *sub_it++);
   EXPECT_EQ(il3d_sub(1, 1, 1), *sub_it++);
+  EXPECT_EQ(il3d_sub.end(), sub_it);
+  EXPECT_EQ(il3d_sub.end(), il3d_sub.end());
+  EXPECT_NE(il3d_sub.begin(), sub_it);
 
-  // TODO: change to "sub_it = il3d_sub.begin()" after implementing operator=
-  View<int>::Iterator sub_it2(il3d_sub.begin());
-  std::fill_n(sub_it2, 3, 7);
+  sub_it = il3d_sub.begin();
+  std::fill_n(sub_it, 3, 7);
   for (int i = 0; i < 3; ++i)
-    ASSERT_EQ(7, *sub_it2++);
-  ASSERT_NE(7, *sub_it2);
+    ASSERT_EQ(7, *sub_it++);
+  ASSERT_NE(7, *sub_it);
+}
+
+TEST(ListTest, IterEmpty) {
+  auto l = MakeList(PortionVector<int, Portion<int*> >());
+  EXPECT_EQ(l.begin(), l.begin());
+  EXPECT_EQ(l.end(), l.end());
+  EXPECT_EQ(l.begin(), l.end());
+
+  int datum;
+  auto il = MakeList([&](int index) { return &datum; }, 0);
+  EXPECT_EQ(il.begin(), il.begin());
+  EXPECT_EQ(il.end(), il.end());
+  EXPECT_EQ(il.begin(), il.end());
 }

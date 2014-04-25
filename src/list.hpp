@@ -101,20 +101,25 @@ struct LogarithmicIndexer {
   }
 
   class Iterator : public std::iterator<std::forward_iterator_tag, T>,
-                   public ViewIterator<T> {
+                   public View<T>::IteratorBase {
    public:
     Iterator(const LogarithmicIndexer* indexer, size_t index)
         : indexer_(indexer),
           index_(index) {}
     Iterator(const Iterator&) = default;
-    V_DEF_VIEW_ITER_METHODS(Iterator, this);
+
+    V_DEF_VIEW_ITER_OPERATORS(Iterator, this)
+
+    bool operator==(const Iterator& other) const {
+      return indexer_ == other.indexer_ && index_ == other.index_;
+    }
+
    protected:
+    V_DEF_VIEW_ITER_IS_EQUAL(Iterator)
+
     void Increment() { ++index_; }
-    // bool Equals(const ViewIterator<T>& other) const {
-      // TODO:
-      // return indexer_ == other.indexer_ && index_ == other.index_;
-    // }
     T& ref() const { return const_cast<T&>((*indexer_)(index_)); }
+
    private:
     const LogarithmicIndexer* indexer_;
     size_t index_;
@@ -131,6 +136,8 @@ struct LogarithmicIndexer {
   ImmutableSkipList<BucketSizeGetter> fwd_;
   // TODO optimize short jumps (need also a "backard" skip list)
   // ImmutableSkipList<ReverseBucketSizeGetter> bwd_;
+
+  friend class List;
 };
 
 }  // namespace list_detail
@@ -144,7 +151,7 @@ class List : public View<T>, protected PortionHelper<P, T> {
 
   // List() : indexer_(portions_) {}
   List(PortionVector<T, P>&& pv)
-      : View<T>(portions_.size()),
+      : View<T>(pv.size()),
         portions_(std::forward<PortionVector<T, P> >(pv)),
         indexer_(portions_) {
     portions_.Shrink();
@@ -164,6 +171,11 @@ class List : public View<T>, protected PortionHelper<P, T> {
     return new Iterator(&indexer_, 0);
   }
 
+  // overrides View<T>::Iterator to provide O(1) time complexity
+  typename View<T>::Iterator end() const {
+    return new Iterator(&indexer_, this->size());
+  }
+
  private:
   PortionVector<T, P> portions_;
   Indexer indexer_;
@@ -176,7 +188,7 @@ class List<T, void, dims, Accessor> : public View<T> {
   typedef std::array<size_t, dims> Strides;
 
   class Iterator : public std::iterator<std::random_access_iterator_tag, T>,
-                   public ViewIterator<T> {
+                   public View<T>::IteratorBase {
    public:
     Iterator(const Iterator&) = default;
     Iterator(Iterator&&) = default;
@@ -184,19 +196,26 @@ class List<T, void, dims, Accessor> : public View<T> {
     Iterator(const List* list, size_t index, Sizes... indexes)
         : list_(list),
           indexes_{{index, static_cast<size_t>(indexes)...}} {
-      // TODO:
     }
 
-    V_DEF_VIEW_ITER_METHODS(Iterator, this);
+    bool operator==(const Iterator& other) const {
+      // XXX this is terribly inefficient and is never equal to a subview iter
+      // (should compare offsets in reverse order)
+      return list_ == other.list_ && indexes_ == other.indexes_;
+    }
+
+    V_DEF_VIEW_ITER_OPERATORS(Iterator, this)
+
+   protected:
+    V_DEF_VIEW_ITER_IS_EQUAL(Iterator)
 
     void Increment() {
       if (++indexes_.back() >= list_->strides_.back()) {
-        indexes_.back() = 0;
         // TODO: use a constexpr function that unrolls the loop at compile time
-        for (int dim = dims - 1; --dim >= 0; ) {
+        for (int dim = dims - 1; dim > 0; ) {
+          indexes_[dim--] = 0;
           if (++indexes_[dim] < list_->strides_[dim])
             break;
-          indexes_[dim] = 0;
         }
       }
     }
@@ -267,10 +286,21 @@ class List<T, void, dims, Accessor> : public View<T> {
     return begin(cpp14::make_index_sequence<dims>());
   }
 
+  // overrides View<T>::Iterator to provide O(1) time complexity
+  typename View<T>::Iterator end() const {
+    return end(cpp14::make_index_sequence<dims>());
+  }
+
  private:
   template<size_t... Indexes>
   Iterator* begin(cpp14::index_sequence<Indexes...>) const {
     return new Iterator(this, list_detail::ZeroSize<Indexes>()...);
+  }
+
+  template<size_t Index, size_t... Indexes>
+  Iterator* end(cpp14::index_sequence<Index, Indexes...>) const {
+    return new Iterator(this, strides_.front(),
+                        list_detail::ZeroSize<Indexes>()...);
   }
 
   Accessor accessor_;
