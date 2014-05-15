@@ -48,11 +48,23 @@ TEST(IteratorTest, IndirectRandomAccess) {
   EXPECT_EQ(30, *(2 + TI(a.begin())));
   EXPECT_EQ(10, *(-3 + TI(a.end())));
 
+  // validate non-const to const conversion
+  typedef IndirectIterator<std::vector<int*>::const_iterator,
+                           std::vector<int*>::iterator> CTI;
+  ti = a.begin();
+  CTI cti = ti;
+  EXPECT_EQ(10, *cti);
+  cti = a.cbegin(); // validate construction from non-transformed const iter
+  EXPECT_EQ(10, *cti);
+  // ti = cti;  // compile error - OK
+
   // validate change via reference
   typedef std::iterator_traits<TI>::reference TIRef;
   TIRef r = *TI(a.begin());
+  cti = a.cbegin();
   r = 100;
   EXPECT_EQ(100, *a.front());
+  EXPECT_EQ(100, *cti); // validate the change is seen by the const iterator
 
   // validate change via pointer
   typedef std::pair<int, int> IntPair;
@@ -64,16 +76,24 @@ TEST(IteratorTest, IndirectRandomAccess) {
   EXPECT_EQ(IntPair(3, 4), *ap.back());
 }
 
-TEST(IteratorTest, CustomProxy) {
-  struct Minus1Transformer {
-    struct Proxy {
-      Proxy& operator=(int v) { *this->v = v + 1; return *this; }
-      operator int() const { return *v - 1; }
-      int* v;
-    };
-    Proxy operator()(int& v) const { return Proxy{&v}; }
+template<typename T>
+void Minus1TransformerHelper(T* this_v, T v) { *this_v = v + 1; }
+template<typename T>
+void Minus1TransformerHelper(const T* this_v, T v) {}
+
+template<typename T>
+struct Minus1Transformer {
+  struct Proxy {
+    Proxy& operator=(T v) { Minus1TransformerHelper(this->v, v); return *this; }
+    operator T() const { return *v - 1; }
+    T* v;
   };
-  typedef TransformedIterator<int*, Minus1Transformer> TI;
+  Proxy operator()(T& v) const { return Proxy{&v}; }
+};
+
+
+TEST(IteratorTest, CustomProxy) {
+  typedef TransformedIterator<int*, Minus1Transformer<int> > TI;
   int x = 5;
   TI ti = &x;
   int act = *ti;
@@ -81,6 +101,19 @@ TEST(IteratorTest, CustomProxy) {
   *ti = 9;
   EXPECT_EQ(9, *ti);
   EXPECT_EQ(10, x);  // validate the pointed data is set to +1
+
+  // validate non-const to const conversion
+  typedef TransformedIterator<const int*, Minus1Transformer<const int>,
+                              int*
+                              // Minus1Transformer<const int>
+                              > CTI;
+  ti = &x;
+  CTI cti = ti;
+  EXPECT_EQ(9, *cti);
+  cti = &x;  // validate construction from non-transformed const iter
+  *cti = 10;
+  EXPECT_EQ(9, *ti);
+  // ti = cti;  // compile error - OK
 }
 
 TEST(IteratorTest, Const) {

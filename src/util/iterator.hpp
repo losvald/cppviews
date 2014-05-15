@@ -10,6 +10,9 @@ template<class InputIter>
 struct InputIterHelper {
   bool operator==(const InputIterHelper& rhs) const { return it_ == rhs.it_; }
   bool operator!=(const InputIterHelper& rhs) const { return it_ != rhs.it_; }
+
+  // expose this helper accessor to allow for non-const to const conversion
+  const InputIter& it() const { return it_; }
  protected:
   InputIter it_;
 };
@@ -41,9 +44,7 @@ class RandomAccessIterHelper
     this->it_ -= n;
     return static_cast<Derived&>(*this);
   }
-  friend Derived operator+(DiffType n, const Derived& it) {
-    return Derived(it + n);
-  }
+  friend Derived operator+(DiffType n, const Derived& it) { return it + n; }
   friend Derived operator-(DiffType n, const Derived& it) { return it - n; }
   bool operator<(const Derived& rhs) const { return this->it_ < rhs.it_; }
   bool operator<=(const Derived& rhs) const { return this->it_ <= rhs.it_; }
@@ -75,7 +76,7 @@ public:
 
 }  // namespace detail
 
-template<class InputIter, class Func>
+template<class InputIter, class Func, class NonConstInputIter = InputIter>
 #define V_THIS_TYPE TransformedIterator<InputIter, Func>
 #define V_THIS_REF_TYPE detail::TransformedIterRef<InputIter, Func>
 class TransformedIterator : public std::iterator<
@@ -101,17 +102,25 @@ class TransformedIterator : public std::iterator<
  public:
   TransformedIterator() = default;
   TransformedIterator(InputIter it) { this->it_ = it; }
+
+  // it's legit (and more generic) to allow const to non-const conversion
+  // from iterators with different transformer functions
+  TransformedIterator(const detail::InputIterHelper<NonConstInputIter>& h)
+      : TransformedIterator(h.it()) {}
+
   typename Traits::reference operator*() const { return func_(*this->it_); }
   typename Traits::pointer operator->() const { return &this->operator*(); }
  private:
+  // hide the helper accessor used for non-const to const conversion
+  const InputIter& it() const { return this->it_; }
+
   Func func_;
 };
 
-// Iterator that makes
-// for example, Indirector
-template<class InputIter>
+template<class InputIter, class NonConstInputIter = InputIter>
 using IndirectIterator = TransformedIterator<
   InputIter,
-  detail::IndirectIterTransformer<InputIter> >;
+  detail::IndirectIterTransformer<InputIter>,
+  NonConstInputIter>;
 
 #endif  /* CPPVIEWS_SRC_UTIL_ITERATOR_HPP_ */
