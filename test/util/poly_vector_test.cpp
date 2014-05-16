@@ -54,6 +54,23 @@ TYPED_TEST(PolyVectorTest, StringTypes) {
   pv.V__POLYVEC_APP(TypeParam, "bb");
   EXPECT_EQ("bb", pv[1]);
 
+  typename PolyVector<TypeParam, String>::ConstIterator cit = pv.cbegin();
+  EXPECT_EQ(pv[0], *cit++);
+  EXPECT_EQ(pv[1], *cit--);
+  EXPECT_EQ(pv[0], *cit);
+  EXPECT_EQ(pv[1], *++cit);
+  EXPECT_EQ(pv[0], *--cit);
+  EXPECT_EQ(pv.cbegin(), cit);
+  EXPECT_EQ(pv.cend(), cit + 2);
+
+  typename PolyVector<TypeParam, String>::Iterator it = pv.begin();
+  *it = SortedString("a");
+  EXPECT_EQ("a", pv[0]);
+  cit = it;  // validate conversion to const iterator
+  EXPECT_EQ("bb", *++cit);
+  // *cit = SortedString("b");  // compile error - OK
+  // cit->clear();  // compile error - OK
+
   const char* anagram = "slot";
   TypeParam s(anagram);
   PolyVector<TypeParam, TypeParam> pv_same;
