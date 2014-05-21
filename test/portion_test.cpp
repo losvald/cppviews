@@ -129,6 +129,17 @@ TEST(PortionTest, BidirIter) {
   EXPECT_EQ(50, f[3]);
   // f[0] = 200;                           // compile error - OK
 
+  // validate iteration
+  decltype(f)::Iterator it = f.begin();
+  EXPECT_EQ(20, *it++);
+  EXPECT_EQ(30, *it);
+  EXPECT_EQ(40, *++it);
+  EXPECT_EQ(f.end(), ++it);
+  EXPECT_EQ(40, *--it);
+  EXPECT_EQ(30, *(--it)--);
+  EXPECT_EQ(20, *it);
+  EXPECT_EQ(f.begin(), it);
+
   ReadonlyPortion<decltype(s.cbegin())> rf(++ ++ s.cbegin(), 3);
   EXPECT_EQ(20, f[0]);
   EXPECT_EQ(30, f[1]);
@@ -151,6 +162,24 @@ TEST(PortionTest, BidirIter) {
   EXPECT_EQ(40, af2[2]);
   EXPECT_EQ(50, af2[3]);
   // af[0] = 100;         // compile error - OK
+}
+
+TEST(PortionTest, PortionBaseIterator) {
+  using namespace std;
+  vector<int> v = {0, 10, 20, 30, 40, 50};
+  const PortionBase<int>& p = MakePortion(v.begin() + 1, 3);
+  PortionBase<int>::Iterator pit(p.begin());
+  EXPECT_EQ(10, *pit++);
+  EXPECT_EQ(20, *pit);
+  EXPECT_EQ(30, *++pit);
+  EXPECT_NE(p.end(), pit);
+  EXPECT_EQ(p.end(), ++pit);
+  EXPECT_EQ(3, pit - p.begin());
+  EXPECT_EQ(-3, p.begin() - pit);
+  pit -= 3;
+  EXPECT_EQ(p.begin(), pit);
+  pit += 3;
+  EXPECT_EQ(p.end(), pit);
 }
 
 TEST(SingletonPortionTest, Int) {
@@ -217,6 +246,42 @@ TEST(SingletonPortionTest, IntConst) {
   ReadonlySingletonPortion<int> c(k);
 }
 
+TEST(SingletonPortionTest, Iterator) {
+  char c = 'x';
+  SingletonPortion<char> sp(c);
+  EXPECT_NE(sp.begin(), sp.end());
+  SingletonPortion<char>::Iterator it = sp.begin();
+  static_assert(std::is_same<char&, decltype(it)::reference>::value,
+                "wrong reference type for SingletonPortion iterator");
+  EXPECT_EQ('x', *it);
+  c = 'y';
+  EXPECT_EQ('y', *it);
+  *it = 'z';
+  EXPECT_EQ('z', *it);
+  EXPECT_EQ('z', c);
+  EXPECT_EQ(sp.begin(), it);
+  EXPECT_EQ(sp.end(), ++it);
+  EXPECT_NE(sp.begin(), it);
+  EXPECT_EQ(1, it - sp.begin());
+  EXPECT_EQ(-1, sp.begin() - it);
+  EXPECT_EQ(0, it - sp.end());
+  EXPECT_EQ(0, sp.end() - it);
+  it -= 1;
+  EXPECT_EQ(sp.begin(), it);
+  EXPECT_EQ(sp.end(), it += 1);
+
+  SingletonPortion<char>::ConstIterator cit;
+  cit = sp.cbegin();
+  EXPECT_EQ(sp.begin(), cit);  // validate interoperability #1
+  it = sp.end();
+  cit = it;  // validate non-const to const conversion
+  EXPECT_EQ(sp.end(), cit);
+  EXPECT_GE(cit, sp.begin());  // validate interoperability #2
+  *it = 'w';
+  EXPECT_EQ('w', *cit);
+  // *cit = 'c';  // compile error - OK
+}
+
 TEST(SingletonMultiportionTest, Constructor) {
   // Portion<int[], int> p = {10, 20, 30}; // compile error - OK
   int a = 10, b = 20, c = 30;
@@ -240,8 +305,21 @@ TEST(SingletonMultiportionTest, Constructor) {
   EXPECT_EQ(2000, p[1]);
   EXPECT_EQ(2000, o[1]);
 
+  // validate iteration
+  decltype(p)::Iterator it = p.begin();
+  decltype(p)::ConstIterator cit;
+  cit = it;  // validate non-const to const conversion
+  ASSERT_EQ(10, *it);
+  EXPECT_EQ(2000, *++cit);
+  *it = 100;  // validate change by iterator
+  EXPECT_EQ(100, *it);
+  EXPECT_NE(*cit, *it);
+  EXPECT_EQ(100, *--cit);  // validate modification seen by const iterator
+
   auto r = MakePortion({std::ref(a), std::ref(b), std::ref(c)});
   EXPECT_EQ(2000, r[1]);
+  *--r.end() = 3000;
+  EXPECT_EQ(3000, c);
 }
 
 TEST(SingletonMultiportionTest, PushPop) {
