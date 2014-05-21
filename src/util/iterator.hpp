@@ -72,6 +72,18 @@ template<class InputIter, class IterTag, class True, class False>
 using IfHasIterCatType = typename std::conditional<
   HasIterCat<InputIter, IterTag>::value, True, False>::type;
 
+template<class InputIter, class Derived>
+using MakeIterHelper = typename detail::IfHasIterCatType<
+  InputIter, std::random_access_iterator_tag,
+  detail::RandomAccessIterHelper<InputIter, Derived>,
+  detail::IfHasIterCatType<
+    InputIter, std::bidirectional_iterator_tag,
+    detail::BidirectionalIterHelper<InputIter, Derived>,
+    detail::IfHasIterCatType<
+      InputIter, std::forward_iterator_tag,
+      detail::ForwardIterHelper<InputIter, Derived>,
+      detail::InputIterHelper<InputIter> > > >;
+
 template<class InputIter, class Func>
 using TransformedIterRef = typename std::result_of<
   Func(typename std::iterator_traits<InputIter>::reference)>::type;
@@ -88,10 +100,8 @@ public:
 
 template<class Iter>
 using IsConstIter = std::is_const<
-  typename std::remove_pointer<
-    typename std::remove_cv<
-      typename std::iterator_traits<Iter>::pointer
-      >::type
+  typename std::remove_reference<
+    typename std::iterator_traits<Iter>::reference
     >::type
   >;
 
@@ -100,7 +110,6 @@ using EnableIfIterConvertible = typename std::enable_if<
   std::is_convertible<FromValue*, ToValue*>::value, Return>::type;
 
 template<class InputIter, class Func, class NonConstInputIter = InputIter>
-#define V_THIS_TYPE TransformedIterator<InputIter, Func>
 #define V_THIS_REF_TYPE detail::TransformedIterRef<InputIter, Func>
 class TransformedIterator : public std::iterator<
   typename std::iterator_traits<InputIter>::iterator_category,
@@ -108,19 +117,9 @@ class TransformedIterator : public std::iterator<
   typename std::iterator_traits<InputIter>::difference_type,
   typename std::add_pointer<V_THIS_REF_TYPE>::type,
   V_THIS_REF_TYPE
-  >, public detail::IfHasIterCatType<
-  InputIter, std::random_access_iterator_tag,
-  detail::RandomAccessIterHelper<InputIter, V_THIS_TYPE>,
-  detail::IfHasIterCatType<
-    InputIter, std::bidirectional_iterator_tag,
-    detail::BidirectionalIterHelper<InputIter, V_THIS_TYPE>,
-    detail::IfHasIterCatType<
-      InputIter, std::forward_iterator_tag,
-      detail::ForwardIterHelper<InputIter, V_THIS_TYPE>,
-      detail::InputIterHelper<InputIter> > >
-  > {
+  >, public detail::MakeIterHelper<InputIter,
+                                   TransformedIterator<InputIter, Func> > {
 #undef V_THIS_REF_TYPE
-#undef V_THIS_TYPE
   typedef typename std::iterator_traits<TransformedIterator> Traits;
  public:
   TransformedIterator() = default;
@@ -165,19 +164,22 @@ using IndirectIterator = TransformedIterator<
 //   V_DEFAULT_ITERATOR_DERIVED_HEAD(Iterator);
 //  public:
 //   Iterator(/* main ctor */);
+//   Iterator(const Iterator<T2>& other,
+//            EnableIfIterConvertible<T2, T, Enabler> = Enabler()) const;
+//            // for convenience, V_DEFAULT_ITERATOR_DISABLE_NONCONVERTIBLE(T2)
+//            // can be put as a second parameter, but it's less readable
 //  protected:
 //   void Increment();
 //   template<class T2>
-//   bool IsEqual(const Iterator<T2>& other,
-//                EnableIfIterConvertible<T2, T, Enabler> = Enabler()) const;
-//   T& ref() const;
+//   bool IsEqual(const Iterator<T2>& other) const;
+//   typename DefaultIterator_::reference ref() const;
 //   ...
 // };
 template<class Derived,
          class Category,
          class V,
          class Distance = std::ptrdiff_t>
-struct DefaultIterator : public std::iterator<Category, V> {
+struct DefaultIterator : public std::iterator<Category, V, Distance> {
 
 #define V_DEFAULT_ITERATOR_DERIVED_HEAD(Iter)                           \
   typedef typename Iter::DefaultIterator_ DefaultIterator_;             \
@@ -195,7 +197,7 @@ struct DefaultIterator : public std::iterator<Category, V> {
     return this->derived().ref();
   }
   V* operator->() const {
-    return &*this->operator();
+    return &this->operator*();
   }
 
   Derived& operator++() {
