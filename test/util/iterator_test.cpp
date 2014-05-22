@@ -11,6 +11,11 @@ TEST(IteratorTest, IndirectRandomAccess) {
   int x = 10, y = 20, z = 30;
   std::vector<int*> a = {&x, &y, &z};
   typedef IndirectIterator<std::vector<int*>::iterator> TI;
+  static_assert(std::is_same<TI::value_type, int*>::value, "value type");
+  static_assert(std::is_same<TI::reference, int&>::value, "reference type");
+  static_assert(std::is_same<TI::pointer, int*>::value, "pointer type");
+  static_assert(std::is_same<TI::iterator_category,
+                std::random_access_iterator_tag>::value, "category");
 
   // validate forward iterator operations
   TI ti = a.begin();
@@ -109,6 +114,10 @@ TEST(IteratorTest, TransformedCustomProxy) {
                               int*
                               // Minus1Transformer<const int>
                               > CTI;
+  static_assert(std::is_same<CTI::value_type, int>::value, "value type");
+  static_assert(std::is_same<CTI::reference,
+                Minus1Transformer<const int>::Proxy>::value,
+                "reference type");
   ti = &x;
   CTI cti = ti;
   EXPECT_EQ(9, *cti);
@@ -320,6 +329,8 @@ TEST(IteratorTest, DefaultForward) {
   // validate forward iterator operations
   typedef decltype(l.begin()) PLI;
   PLI pli(l.begin());
+  static_assert(std::is_same<int&, decltype(pli)::reference>::value,
+                "wrong reference type for PointerList iterator");
   ASSERT_EQ(pli, PLI(l.begin()));
   ASSERT_FALSE(pli != PLI(l.begin()));
   ASSERT_NE(pli, PLI(l.end()));

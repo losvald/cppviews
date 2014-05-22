@@ -88,6 +88,11 @@ template<class InputIter, class Func>
 using TransformedIterRef = typename std::result_of<
   Func(typename std::iterator_traits<InputIter>::reference)>::type;
 
+template<class InputIter, class Func>
+using TransformedIterPointer = typename std::add_pointer<
+  typename std::remove_reference<TransformedIterRef<InputIter, Func> >::type
+  >::type;
+
 template<class InputIter>
 class IndirectIterTransformer {
   typedef typename std::iterator_traits<InputIter>::value_type Pointer;
@@ -110,17 +115,14 @@ using EnableIfIterConvertible = typename std::enable_if<
   std::is_convertible<FromValue*, ToValue*>::value, Return>::type;
 
 template<class InputIter, class Func, class NonConstInputIter = InputIter>
-#define V_THIS_REF_TYPE detail::TransformedIterRef<InputIter, Func>
 class TransformedIterator : public std::iterator<
   typename std::iterator_traits<InputIter>::iterator_category,
   typename std::iterator_traits<InputIter>::value_type,
   typename std::iterator_traits<InputIter>::difference_type,
-  typename std::add_pointer<V_THIS_REF_TYPE>::type,
-  V_THIS_REF_TYPE
+  detail::TransformedIterPointer<InputIter, Func>,
+  detail::TransformedIterRef<InputIter, Func>
   >, public detail::MakeIterHelper<InputIter,
                                    TransformedIterator<InputIter, Func> > {
-#undef V_THIS_REF_TYPE
-  typedef typename std::iterator_traits<TransformedIterator> Traits;
  public:
   TransformedIterator() = default;
   TransformedIterator(InputIter it) { this->it_ = it; }
@@ -130,8 +132,12 @@ class TransformedIterator : public std::iterator<
   TransformedIterator(const detail::InputIterHelper<NonConstInputIter>& h)
       : TransformedIterator(h.it()) {}
 
-  typename Traits::reference operator*() const { return func_(*this->it_); }
-  typename Traits::pointer operator->() const { return &this->operator*(); }
+  detail::TransformedIterRef<InputIter, Func> operator*() const {
+    return func_(*this->it_);
+  }
+  detail::TransformedIterPointer<InputIter, Func> operator->() const {
+    return &this->operator*();
+  }
  private:
   // hide the helper accessor used for non-const to const conversion
   const InputIter& it() const { return this->it_; }
