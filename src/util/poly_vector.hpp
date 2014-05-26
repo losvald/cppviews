@@ -39,7 +39,9 @@ struct PolyVectorEmplaceHelper<T, T> {
 template<typename T>
 struct PolyVectorDefaultFactory {
   template<typename... Args>
-  constexpr T operator()(Args&&... args) const { return T(); }
+  constexpr T operator()(Args&&... args) const {
+    return T(std::forward<Args>(args)...);
+  }
 };
 
 template<class T, class Base, class Factory>
@@ -113,6 +115,11 @@ class PolyVector {
   ConstIterator end() const { return v_.end(); }
   ConstIterator cbegin() const { return v_.cbegin(); }
   ConstIterator cend() const { return v_.cend(); }
+
+  Ref front() { return *v_.front(); }
+  ConstRef front() const { return *v_.front(); }
+  Ref back() { return *v_.back(); }
+  ConstRef back() const { return *v_.back(); }
 
   SizeType size() const { return v_.size(); }
   SizeType max_size() const { return v_.max_size(); }
