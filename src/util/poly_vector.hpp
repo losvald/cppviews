@@ -90,7 +90,7 @@ class PolyVector {
   inline Ref operator[](SizeType index) { return *v_[index]; }
 
   template<typename... Args>
-  inline PolyVector& AppendThis(Args&&... args) {
+  inline PolyVector&& AppendThis(Args&&... args) {
     return this->template Append<T>(std::forward<Args>(args)...);
   }
 
@@ -107,7 +107,10 @@ class PolyVector {
     return std::move(*this);
   }
 
+  void GrowBack() { v_.emplace_back(); }
   void Shrink() { v_.shrink_to_fit(); }
+
+  void reset(SizeType index, T* ptr) { v_[index].reset(ptr); }
 
   Iterator begin() { return v_.begin(); }
   Iterator end() { return v_.end(); }

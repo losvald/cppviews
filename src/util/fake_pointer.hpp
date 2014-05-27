@@ -16,7 +16,7 @@ class FakePointer {
   // FakePointer(FakePointer&& p) {}//: data_(std::move(p.data_)) {}
 
   FakePointer(FakePointer& p) : data_(p.data_) {}
-  FakePointer() {}
+  FakePointer() = default;
 
   inline T* operator->() const {
     return &data_;
@@ -46,6 +46,9 @@ class FakePointer {
                                 nullptr_t rhs) noexcept {
     return true;
   }
+
+  void reset(T* data_ptr) { data_ = *data_ptr; }
+  void reset(std::nullptr_t p) noexcept {}
 
  private:
   inline operator T&&() const {     // hack to enable proper move ctor
