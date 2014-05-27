@@ -27,6 +27,8 @@ class PortionBase {
 
   static constexpr unsigned kDims = 1;  // used by List
 
+  virtual void Clear() = 0;
+
   virtual void set(size_t index, const T& value) const = 0;
   virtual const T& get(size_t index) const = 0;
   virtual size_t size() const = 0;
@@ -52,43 +54,47 @@ struct PortionSetHelper<const T> {
   inline void Set(const P& portion, size_t index, const T& value) const {}
 };
 
-template<class InputIter,
+template<class ForwardIter,
          typename T = typename std::conditional<
-           IsConstIter<InputIter>::value,
-           const typename std::iterator_traits<InputIter>::value_type,
-           typename std::iterator_traits<InputIter>::value_type
+           IsConstIter<ForwardIter>::value,
+           const typename std::iterator_traits<ForwardIter>::value_type,
+           typename std::iterator_traits<ForwardIter>::value_type
            >::type
          >
 class Portion : public PortionBase<T>, protected PortionSetHelper<T> {
  public:
-  typedef InputIter Iterator;
+  typedef ForwardIter Iterator;
   // TODO: support ConstIter (requires major refactoring)
-  typedef typename std::iterator_traits<InputIter>::difference_type DiffType;
-  typedef typename std::iterator_traits<InputIter>::reference RefType;
+  typedef typename std::iterator_traits<ForwardIter>::difference_type DiffType;
+  typedef typename std::iterator_traits<ForwardIter>::reference RefType;
 
-  constexpr Portion(const InputIter& begin, DiffType size)
+  constexpr Portion(const ForwardIter& begin, DiffType size)
       : begin_(begin),
         size_(size) {}
-  constexpr Portion(DiffType size, const InputIter& end)
+  constexpr Portion(DiffType size, const ForwardIter& end)
       : begin_(std::next(end, -size)),
         size_(size) {}
-
+  // constexpr Portion(nullptr_t&&) : size_(0) {}
   Portion() = default;
+
+  void Clear() override { size_ = 0; }
 
   constexpr RefType operator[](DiffType index) const {
     return *std::next(begin_, index);
   }
 
-  inline void set(size_t index, const T& value) const {
+  inline void set(size_t index, const T& value) const override {
     this->Set(*this, index, value);
   }
 
-  constexpr const T& get(size_t index) const { return operator[](index); }
-  constexpr size_t size() const {
+  constexpr const T& get(size_t index) const override {
+    return operator[](index);
+  }
+  constexpr size_t size() const override {
     return static_cast<decltype(size())>(size_);
   }
 
-  constexpr size_t max_size() const {
+  constexpr size_t max_size() const override {
     return std::numeric_limits<DiffType>::max();
   }
 
@@ -96,13 +102,13 @@ class Portion : public PortionBase<T>, protected PortionSetHelper<T> {
   Iterator end() const { return std::next(begin_, size_); }
 
  private:
-  InputIter begin_;
+  ForwardIter begin_;
   DiffType size_;
 };
 
-template<class InputIter>
+template<class ForwardIter>
 using ReadonlyPortion = Portion<
-  InputIter, const typename std::iterator_traits<InputIter>::value_type>;
+  ForwardIter, const typename std::iterator_traits<ForwardIter>::value_type>;
 
 // specialization for singleton portion
 
@@ -129,28 +135,29 @@ class Portion<T, T> : public PortionBase<T>, protected PortionSetHelper<T> {
   typedef detail::SingletonPortionIter<const T> ConstIterator;
 
   constexpr Portion(T& value) : ptr_(&value) {}
+  // Portion(std::nullptr_t&&) : ptr_(nullptr) {} // allow empty
   Portion(T&& value) = delete;          // disallow references to temporaries
   Portion() = default;
+
+  void Clear() override { ptr_ = nullptr; }
 
   constexpr operator T&() const { return *ptr_; }
 
   // for consistency
   constexpr T& operator[](size_t) const { return *ptr_; }
 
-  inline void set(size_t index, const T& value) const {
+  inline void set(size_t index, const T& value) const override {
     this->Set(*this, index, value);
   }
 
-  constexpr const T& get(size_t index) const { return *ptr_; }
-  constexpr size_t size() const { return static_cast<size_t>(1); }
-  constexpr size_t max_size() const {
-    return std::numeric_limits<size_t>::max();
-  }
+  constexpr const T& get(size_t index) const override { return *ptr_; }
+  constexpr size_t size() const override { return this->max_size(); }
+  constexpr size_t max_size() const override { return 1u; }
 
   Iterator begin() const { return Iterator(ptr_, false); }
-  Iterator end() const { return Iterator(ptr_, true); }
+  Iterator end() const { return Iterator(ptr_, ptr_ != nullptr); }
   ConstIterator cbegin() const { return ConstIterator(ptr_, false); }
-  ConstIterator cend() const { return ConstIterator(ptr_, true); }
+  ConstIterator cend() const { return ConstIterator(ptr_, ptr_ != nullptr); }
 
  private:
   T* ptr_;
@@ -178,6 +185,8 @@ class Portion<T[], T> : public PortionBase<T>, protected PortionSetHelper<T> {
   }
   Portion() = default;
 
+  void Clear() { ptrs_.clear(); }
+
   constexpr T& operator[](size_t index) const { return *ptrs_[index]; }
 
   inline void PushFront(T& value) { ptrs_.push_front(&value); }
@@ -186,7 +195,7 @@ class Portion<T[], T> : public PortionBase<T>, protected PortionSetHelper<T> {
   inline void PopBack() { ptrs_.pop_back(); }
   inline void Shrink() { ptrs_.shrink_to_fit(); }
 
-  inline void set(size_t index, const T& value) const {
+  inline void set(size_t index, const T& value) const override {
     this->Set(*this, index, value);
   }
 
@@ -213,51 +222,42 @@ class Portion<T[], T> : public PortionBase<T>, protected PortionSetHelper<T> {
   PointerDeque ptrs_;
 };
 
-template<typename T>
-class SingletonPortionIter
-    : public DefaultIterator<SingletonPortionIter<T>,
-                             std::random_access_iterator_tag,
-                             T> {
-  V_DEFAULT_ITERATOR_DERIVED_HEAD(SingletonPortionIter);
+// specialization for empty portion
+
+using EmptyPortion = Portion<void, std::nullptr_t>;
+
+template<>
+class Portion<void, std::nullptr_t> : public PortionBase<std::nullptr_t> {
  public:
-  explicit SingletonPortionIter(const SingletonPortion<T>& p, bool end)
-      : p_(&p),
-        end_(end) {}
-  template<typename T2>
-  SingletonPortionIter(const SingletonPortionIter<T2>& other,
-                       V_DEFAULT_ITERATOR_DISABLE_NONCONVERTIBLE(T2))
-      : p_(other.p_),
-        end_(other.end_) {}
-  SingletonPortionIter() = default;
+  void* operator new(size_t sz) noexcept { return instance(); }
+  void operator delete(void* ptr) noexcept {}
 
- protected:
-  void Increment() { end_ = true; }
-  void Decrement() { end_ = false; }
-  void Advance(typename DefaultIterator_::difference_type distance) {
-    end_ = (end_ & (distance >= 0)) | (distance > 0);
+  void Clear() override {}
+  void set(size_t index, const std::nullptr_t& value) const override {}
+  const std::nullptr_t& get(size_t index) const override {
+    static constexpr nullptr_t kNullPtr = nullptr;
+    return kNullPtr;
   }
-  template<typename T2>
-  typename DefaultIterator_::difference_type DistanceTo(
-      const SingletonPortionIter<T2>& it) const {
-    return it.end_ - end_;
-  }
-  template<typename T2>
-  bool IsEqual(const SingletonPortionIter<T2>& other) const {
-    return p_ == other.p_ && end_ == other.end_;
-  }
-  typename DefaultIterator_::reference ref() const { return (*p_)[0]; }
+  size_t size() const override { return this->max_size(); }
+  size_t max_size() const override { return 0u; }
 
- private:
-  const SingletonPortion<T>* p_;
-  bool end_;
+  static EmptyPortion* instance() noexcept {
+    static EmptyPortion kInstance;
+    return &kInstance;
+  }
 };
 
+template<class ForwardIter>
+constexpr Portion<ForwardIter> MakePortion(
+    ForwardIter begin,
+    typename Portion<ForwardIter>::DiffType size) {
+  return Portion<ForwardIter>(begin, size);
+}
 
-template<class InputIter>
-constexpr Portion<InputIter> MakePortion(
-    InputIter begin,
-    typename Portion<InputIter>::DiffType size) {
-  return Portion<InputIter>(begin, size);
+template<class ForwardIter, typename T>
+constexpr Portion<ForwardIter, T>
+MakePortion(const Portion<ForwardIter, T>& other) {
+  return Portion<ForwardIter, T>(other);
 }
 
 template<typename T>
@@ -271,11 +271,15 @@ constexpr SingletonPortion<T> MakePortion(T& value) {
   return SingletonPortion<T>(value);
 }
 
-template<class InputIter>
-constexpr Portion<InputIter>* AllocPortion(
-    InputIter begin,
-    typename Portion<InputIter>::DiffType size) {
-  return new Portion<InputIter>(begin, size);
+constexpr EmptyPortion MakePortion() {
+  return EmptyPortion();
+}
+
+template<class ForwardIter>
+constexpr Portion<ForwardIter>* AllocPortion(
+    ForwardIter begin,
+    typename Portion<ForwardIter>::DiffType size) {
+  return new Portion<ForwardIter>(begin, size);
 }
 
 template<typename T>
@@ -287,6 +291,10 @@ constexpr SingletonMultiportion<T>* AllocPortion(
 template<typename T>
 constexpr SingletonPortion<T>* AllocPortion(T& value) {
   return SingletonPortion<T>(value);
+}
+
+inline EmptyPortion* AllocPortion() {
+  return EmptyPortion::instance();
 }
 
 struct PortionFactory {
