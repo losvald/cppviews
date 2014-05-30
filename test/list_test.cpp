@@ -7,7 +7,7 @@
 #include <type_traits>
 
 template<typename T>
-using PolyList = List<T, PortionBase<T> >;
+using PolyList = List<PortionBase<T> >;
 
 TEST(ListTest, PortionVector) {
   int arr[] = {0, 10, 20, 30, 40, 50};
@@ -21,44 +21,64 @@ TEST(ListTest, PortionVector) {
   EXPECT_EQ(10, pv[0].get(1));
   EXPECT_EQ(50, pv[1].get(0));
   EXPECT_EQ(40, pv[2].get(1));
-
-  // EXPECT_EQ(10, pv[1]);
-  // EXPECT_EQ(50, pv[2]);
-  // EXPECT_EQ(40, pv[4]);
 }
 
-TEST(ListTest, ConstructorNonPoly) {
+TEST(ListTest, SimpleNonPoly) {
   int arr[] = {0, 10, 20, 30, 40, 50};
   PolyVector<Portion<int*>, PortionBase<int>, PortionFactory > v;
   v.Append(arr, 1);
   v.Append<Portion<int*> >(arr + 1, 2);
   PortionVector<int, Portion<int*> > w = v;
-  List<int, Portion<int*> > l(std::move(v));
+  SimpleList<Portion<int*> > l(std::move(v));
 
   // EXPECT_EQ("foobar", std::string("f").append(2, 'o').append("bar"));
 
-  List<int, Portion<int*> > l2(
+  SimpleList<Portion<int*> > l2(
       PortionVector<int, Portion<int*> >()
       .Append(arr + 4, 1)
       .Append<int>(arr + 1, 2));
   EXPECT_EQ(40, l2.get(0));
   EXPECT_EQ(10, l2.get(1));
   EXPECT_EQ(20, l2.get(2));
+
+  const View<int>& v2 = l2;
+  ASSERT_EQ(v2.begin(), l2.fbegin());
+  ASSERT_EQ(v2.begin(), l2.fbegin());
+  ASSERT_EQ(v2.end(), l2.fend());
+  ASSERT_EQ(3, v2.size());
+  EXPECT_EQ(v2.begin(), v2.begin());
+  EXPECT_EQ(v2.end(), v2.end());
+  EXPECT_NE(v2.begin(), v2.end());
+
+  auto v2it = v2.begin();
+  EXPECT_EQ(v2.begin(), v2it);
+  EXPECT_NE(v2.end(), v2it);
+  EXPECT_EQ(40, *v2it++);
+  EXPECT_NE(v2.begin(), v2it);
+  EXPECT_NE(v2.end(), v2it);
+  EXPECT_EQ(10, *v2it);
+  EXPECT_NE(v2.begin(), v2it);
+  EXPECT_NE(v2.end(), v2it);
+  EXPECT_EQ(20, *++v2it);
+  EXPECT_NE(v2.begin(), v2it);
+  EXPECT_NE(v2.end(), v2it);
+  EXPECT_EQ(v2.end(), ++v2it);
+  EXPECT_NE(v2.begin(), v2it);
 
   auto l3 = MakeList(
       PortionVector<int, Portion<int*> >()
       .Append(arr + 4, 1)
       .Append<int>(arr + 1, 2));
-  EXPECT_EQ(40, l2.get(0));
-  EXPECT_EQ(10, l2.get(1));
-  EXPECT_EQ(20, l2.get(2));
+  // EXPECT_EQ(40, l2.get(0));
+  // EXPECT_EQ(10, l2.get(1));
+  // EXPECT_EQ(20, l2.get(2));
 
-  View<int>::Iterator l3_vit(l3.begin());
-  EXPECT_EQ(40, *l3_vit++);
-  EXPECT_EQ(10, *l3_vit);
-  *l3_vit = 100;
-  EXPECT_EQ(20, *++l3_vit);
-  EXPECT_EQ(100, l.get(1));
+  auto l3_it = l3.begin();
+  EXPECT_EQ(40, *l3_it++);
+  EXPECT_EQ(10, *l3_it);
+  *l3_it = 100;
+  EXPECT_EQ(20, *++l3_it);
+  // EXPECT_EQ(100, l.get(1));
 }
 
 template<class L>
@@ -76,7 +96,7 @@ TEST(ListTest, ConstructorPoly) {
   const char *hello_world_str = "hello world";
   std::string world(hello_world_str + 6, 5);
 
-  List<const char> l_verbose(
+  SimpleList<PortionBase<const char> > l_verbose(
       PortionVector<const char>()
       .Append<SingletonPortion<const char> >(y)
       .Append<Portion<const char*> >(hello_world_str + 1, 4)
@@ -86,7 +106,7 @@ TEST(ListTest, ConstructorPoly) {
           world.crbegin() + 2, 4));
   AssertEqualYellow(l_verbose);
 
-  List<const char> l(
+  SimpleList<PortionBase<const char> > l(
       PortionVector<const char>()
       .Append(static_cast<const char&>(y))
       .Append(hello_world_str + 1, 4)
@@ -95,7 +115,7 @@ TEST(ListTest, ConstructorPoly) {
       .Append(world.crbegin() + 2, 4));
   AssertEqualYellow(l);
 
-  View<const char>::Iterator l_vit(l.begin());
+  View<const char>::Iterator l_vit(l.fbegin());
   EXPECT_EQ('y', *l_vit++);
   EXPECT_EQ('e', *l_vit);
   EXPECT_EQ('l', *++l_vit);
@@ -142,7 +162,7 @@ TEST(ListTest, ConstructorPoly) {
   ++it2;
   ++it2;
   EXPECT_EQ(&world[0], &*++it2);
-  // EXPECT_EQ(il2.end(), it2);
+  EXPECT_EQ(il2.end(), ++it2);
 }
 
 TEST(ListTest, StridesAndSize) {
@@ -163,6 +183,14 @@ TEST(ListTest, Offsets2D) {
                        Sub(2, 5), Sub(1, 3));
   EXPECT_EQ(8, il2d(0, 0));
   EXPECT_EQ(9, il2d(0, 1));
+
+  // test modifications
+  il2d(0, 1) = 90;
+  EXPECT_EQ(90, il2d(0, 1));
+  ListBase<int, 2>& b = il2d;
+  b.get({0, 1}) = 900;
+  EXPECT_EQ(900, b.get({0, 1}));
+  EXPECT_EQ(900, il2d(0, 1));
 }
 
 TEST(ListTest, Offsets3DSub) {
@@ -179,8 +207,8 @@ TEST(ListTest, Offsets3DSub) {
     }, Sub(2, 5), Sub(3, 3), Sub(1, 2));
 
   EXPECT_EQ(m[2][3][1], il3d(0, 0, 0));
-  EXPECT_EQ(m[3][4][1], il3d(1, 1, 0));
-  EXPECT_EQ(m[4][3][4], il3d(2, 0, 3));
+  EXPECT_EQ(m[3][4][1], il3d.get(1, 1, 0));
+  EXPECT_EQ(m[4][3][4], il3d.get({2, 0, 3}));
 
   auto it = il3d.begin();
   for (int i = 0; i < 3; ++i)
@@ -220,13 +248,19 @@ TEST(ListTest, Offsets3DSub) {
 
 TEST(ListTest, IterEmpty) {
   auto l = MakeList(PortionVector<int, Portion<int*> >());
+  EXPECT_EQ(l.fbegin(), l.fbegin());
+  EXPECT_EQ(l.fend(), l.fend());
+  EXPECT_EQ(l.fbegin(), l.fend());
   EXPECT_EQ(l.begin(), l.begin());
   EXPECT_EQ(l.end(), l.end());
   EXPECT_EQ(l.begin(), l.end());
 
   int datum;
   auto il = MakeList([&](int index) { return &datum; }, 0);
-  EXPECT_EQ(il.begin(), il.begin());
-  EXPECT_EQ(il.end(), il.end());
-  EXPECT_EQ(il.begin(), il.end());
+  EXPECT_EQ(il.fbegin(), il.fbegin());
+  EXPECT_EQ(il.fend(), il.fend());
+  EXPECT_EQ(il.fbegin(), il.fend());
+  EXPECT_EQ(l.begin(), l.begin());
+  EXPECT_EQ(l.end(), l.end());
+  EXPECT_EQ(l.begin(), l.end());
 }

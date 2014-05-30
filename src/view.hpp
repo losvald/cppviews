@@ -40,15 +40,15 @@ class View {
     Iter operator++(int) { Iter old(*this); it->Increment(); return old; } \
     bool operator!=(const Iter& rhs) const { return !(*this == rhs); }
 
-#define V_DEF_VIEW_ITER_IS_EQUAL(Iter)                                  \
-  typename View<T>::IteratorBase::IsEqualPointer equal() const {        \
-    return &IsEqual;                                                    \
+#define V_DEF_VIEW_ITER_IS_EQUAL(T, Iter)                               \
+  typename View<T>::IteratorBase::IsEqualPointer equal() const override { \
+      return &IsEqual;                                                  \
   }                                                                     \
   static bool IsEqual(const typename View<T>::IteratorBase& lhs,        \
                       const typename View<T>::IteratorBase& rhs) {      \
     return static_cast<const Iter&>(lhs) == static_cast<const Iter&>(rhs); \
   }                                                                     \
-  Iter* Clone() const { return new Iter(*this); }
+  Iter* Clone() const override { return new Iter(*this); }
 
     friend class Iterator;
   };  // class IteratorBase
@@ -75,14 +75,15 @@ class View {
   size_t size() const { return size_; }
   virtual size_t max_size() const { return std::numeric_limits<size_t>::max(); }
 
-  virtual Iterator begin() const = 0;
-  virtual Iterator end() const {
-    Iterator it(begin());
-    std::advance(it, size_);
-    return it;
-  }
+  Iterator begin() const { return iterator_begin(); }
+  Iterator end() const { return iterator_end(); }
 
  protected:
+  virtual Iterator iterator_begin() const = 0;
+  virtual Iterator iterator_end() const {
+    return std::next(this->iterator_begin(), this->size_);
+  }
+
   size_t size_;
 };
 
