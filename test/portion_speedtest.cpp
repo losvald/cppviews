@@ -12,7 +12,7 @@
 namespace {
 
 template<class P>
-struct PortionValue { typedef typename P::ValueType Type; };
+struct PortionValue { typedef typename P::DataType Type; };
 
 template<class P>
 struct PortionValue<P*> { typedef P Type; };
@@ -35,7 +35,7 @@ struct Helper<PortionBase<T>, T> {
   }
 
   inline void Set(PortionBase<T>& portion, size_t index, const T& value) {
-    portion.set(index, value);
+    portion.get(index) = value;
   }
 };
 
@@ -46,7 +46,7 @@ class PortionSpeedTest : public ::testing::Test,
                          public Helper<P, typename PortionValue<P>::Type> {
  protected:
   typedef P PortionType;
-  typedef typename PortionValue<P>::Type ValueType;
+  typedef typename PortionValue<P>::Type DataType;
 
   static const int gArrSize = 1 << 10;
 
@@ -58,7 +58,7 @@ class PortionSpeedTest : public ::testing::Test,
     EXPECT_NE(hash_, kHashMagic);
   }
 
-  void InitArray(ValueType* arr, unsigned size) const {
+  void InitArray(DataType* arr, unsigned size) const {
     std::fill(arr, arr + size, 0);
     for (int i = 1; i < size; ++i)
       arr[i] = 2104087157 * arr[i - 1] + i;
@@ -68,16 +68,16 @@ class PortionSpeedTest : public ::testing::Test,
     hash_ = hash_ * kHashPrime + hasher_(this->Get(portion, index));
   }
 
-  inline void Write(P& portion, size_t index, const ValueType& value) {
+  inline void Write(P& portion, size_t index, const DataType& value) {
     this->Set(portion, index, value);
     hash_ = hash_ * kHashPrime + hasher_(value);
   }
 
-  const ValueType kHashPrime = 31;
-  const ValueType kHashMagic = ValueType();
+  const DataType kHashPrime = 31;
+  const DataType kHashMagic = DataType();
 
-  std::hash<ValueType> hasher_;
-  ValueType hash_;
+  std::hash<DataType> hasher_;
+  DataType hash_;
 };
 
 namespace {

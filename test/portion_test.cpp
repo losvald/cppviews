@@ -9,7 +9,7 @@
 TEST(PortionTest, MetaTest) {
   int arr[] = {};
   EXPECT_TRUE((std::is_same<int,
-               decltype(MakePortion(arr, 3))::ValueType>
+               decltype(MakePortion(arr, 3))::DataType>
                ::value));
   EXPECT_TRUE((std::is_same<int&,
                decltype(MakePortion(arr, 3))::RefType>
@@ -17,7 +17,7 @@ TEST(PortionTest, MetaTest) {
 
   std::vector<int> vec;
   EXPECT_TRUE((std::is_same<int,
-               decltype(MakePortion(vec.begin(), 3))::ValueType>
+               decltype(MakePortion(vec.begin(), 3))::DataType>
                ::value));
   EXPECT_TRUE((std::is_same<int&,
                decltype(MakePortion(vec.begin(), 3))::RefType>
@@ -25,13 +25,13 @@ TEST(PortionTest, MetaTest) {
 
   std::set<int> set;
   EXPECT_TRUE((std::is_same<const int,
-               decltype(MakePortion(set.begin(), 3))::ValueType>
+               decltype(MakePortion(set.begin(), 3))::DataType>
                ::value));
   EXPECT_TRUE((std::is_same<const int&,
                decltype(MakePortion(set.begin(), 3))::RefType>
                ::value));
   EXPECT_TRUE((std::is_same<const int,
-               decltype(MakePortion(set.cbegin(), 3))::ValueType>
+               decltype(MakePortion(set.cbegin(), 3))::DataType>
                ::value));
   EXPECT_TRUE((std::is_same<const int&,
                decltype(MakePortion(set.cbegin(), 3))::RefType>
@@ -59,7 +59,7 @@ TEST(PortionTest, Pointer) {
   EXPECT_EQ(20, f.get(1));
   EXPECT_EQ(30, f.get(2));
 
-  f.set(0, 10);
+  f.get(0) = 10;
   EXPECT_EQ(10, f.get(0));
   EXPECT_EQ(a[1], f.get(0));
 
@@ -88,7 +88,7 @@ TEST(PortionTest, RandomIter) {
   EXPECT_EQ(200, v[1]);
 
   PortionBase<int>& fb = f;
-  fb.set(1, 20);
+  fb.get(1) = 20;
   EXPECT_EQ(10, fb.get(0));
   EXPECT_EQ(20, fb.get(1));
   EXPECT_EQ(30, fb.get(2));
@@ -189,7 +189,7 @@ TEST(SingletonPortionTest, Int) {
   EXPECT_EQ(1, p.size());
   EXPECT_EQ(5, p.get(0));
 
-  p.set(0, 10);
+  p.get(0) = 10;
   EXPECT_EQ(10, p.get(0));
   EXPECT_EQ(10, v);
 

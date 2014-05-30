@@ -3,11 +3,11 @@
 
 #include "util/iterator.hpp"
 
+#include <deque>
 #include <initializer_list>
 #include <iterator>
 #include <limits>
 #include <type_traits>
-#include <deque>
 
 namespace v {
 
@@ -21,16 +21,14 @@ class PortionBaseIter;
 template<typename T>
 class PortionBase {
  public:
-  typedef T ValueType;
-  typedef ValueType DataType;  // used by List
+  typedef T DataType;  // used by List
   typedef detail::PortionBaseIter<T> Iterator;
 
   static constexpr unsigned kDims = 1;  // used by List
 
   virtual void Clear() = 0;
 
-  virtual void set(size_t index, const T& value) const = 0;
-  virtual const T& get(size_t index) const = 0;
+  virtual T& get(size_t index) const = 0;
   virtual size_t size() const = 0;
   virtual size_t max_size() const = 0;
 
@@ -40,20 +38,6 @@ class PortionBase {
   Iterator end() const { return Iterator(*this, size()); }
 };
 
-template<typename T>
-struct PortionSetHelper {
-  template<class P>
-  inline void Set(const P& portion, size_t index, const T& value) const {
-    portion[index] = value;
-  }
-};
-
-template<typename T>
-struct PortionSetHelper<const T> {
-  template<class P>
-  inline void Set(const P& portion, size_t index, const T& value) const {}
-};
-
 template<class ForwardIter,
          typename T = typename std::conditional<
            IsConstIter<ForwardIter>::value,
@@ -61,7 +45,7 @@ template<class ForwardIter,
            typename std::iterator_traits<ForwardIter>::value_type
            >::type
          >
-class Portion : public PortionBase<T>, protected PortionSetHelper<T> {
+class Portion : public PortionBase<T> {
  public:
   typedef ForwardIter Iterator;
   // TODO: support ConstIter (requires major refactoring)
@@ -83,16 +67,10 @@ class Portion : public PortionBase<T>, protected PortionSetHelper<T> {
     return *std::next(begin_, index);
   }
 
-  inline void set(size_t index, const T& value) const override {
-    this->Set(*this, index, value);
-  }
-
-  constexpr const T& get(size_t index) const override {
+  constexpr T& get(size_t index) const override {
     return operator[](index);
   }
-  constexpr size_t size() const override {
-    return static_cast<decltype(size())>(size_);
-  }
+  constexpr size_t size() const override { return size_; }
 
   constexpr size_t max_size() const override {
     return std::numeric_limits<DiffType>::max();
@@ -129,7 +107,7 @@ class SingletonMultiportionIter;
 }  // namespace detail
 
 template<typename T>
-class Portion<T, T> : public PortionBase<T>, protected PortionSetHelper<T> {
+class Portion<T, T> : public PortionBase<T> {
  public:
   typedef detail::SingletonPortionIter<T> Iterator;
   typedef detail::SingletonPortionIter<const T> ConstIterator;
@@ -146,13 +124,9 @@ class Portion<T, T> : public PortionBase<T>, protected PortionSetHelper<T> {
   // for consistency
   constexpr T& operator[](size_t) const { return *ptr_; }
 
-  inline void set(size_t index, const T& value) const override {
-    this->Set(*this, index, value);
-  }
-
-  constexpr const T& get(size_t index) const override { return *ptr_; }
+  constexpr T& get(size_t index) const override { return *ptr_; }
   constexpr size_t size() const override { return this->max_size(); }
-  constexpr size_t max_size() const override { return 1u; }
+  constexpr size_t max_size() const override { return 1; }
 
   Iterator begin() const { return Iterator(ptr_, false); }
   Iterator end() const { return Iterator(ptr_, ptr_ != nullptr); }
@@ -170,7 +144,7 @@ template<typename T>
 using ReadonlySingletonMultiportion = Portion<const T[], const T>;
 
 template<typename T>
-class Portion<T[], T> : public PortionBase<T>, protected PortionSetHelper<T> {
+class Portion<T[], T> : public PortionBase<T> {
   typedef std::deque<T*> PointerDeque;
  public:
   typedef IndirectIterator<typename PointerDeque::iterator> Iterator;
@@ -189,18 +163,14 @@ class Portion<T[], T> : public PortionBase<T>, protected PortionSetHelper<T> {
 
   constexpr T& operator[](size_t index) const { return *ptrs_[index]; }
 
-  inline void PushFront(T& value) { ptrs_.push_front(&value); }
-  inline void PushBack(T& value) { ptrs_.push_back(&value); }
-  inline void PopFront() { ptrs_.pop_front(); }
-  inline void PopBack() { ptrs_.pop_back(); }
-  inline void Shrink() { ptrs_.shrink_to_fit(); }
+  void PushFront(T& value) { ptrs_.push_front(&value); }
+  void PushBack(T& value) { ptrs_.push_back(&value); }
+  void PopFront() { ptrs_.pop_front(); }
+  void PopBack() { ptrs_.pop_back(); }
+  void Shrink() { ptrs_.shrink_to_fit(); }
 
-  inline void set(size_t index, const T& value) const override {
-    this->Set(*this, index, value);
-  }
-
-  constexpr const T& get(size_t index) const { return (*this)[index]; }
-  constexpr size_t size() const { return static_cast<size_t>(ptrs_.size()); }
+  constexpr T& get(size_t index) const override { return (*this)[index]; }
+  constexpr size_t size() const override { return ptrs_.size(); }
 
   constexpr T& front() const { return *ptrs_.front(); }
   constexpr T& back() const { return *ptrs_.back(); }
@@ -233,13 +203,13 @@ class Portion<void, std::nullptr_t> : public PortionBase<std::nullptr_t> {
   void operator delete(void* ptr) noexcept {}
 
   void Clear() override {}
-  void set(size_t index, const std::nullptr_t& value) const override {}
-  const std::nullptr_t& get(size_t index) const override {
-    static constexpr nullptr_t kNullPtr = nullptr;
+  std::nullptr_t& get(size_t index) const override {
+    static nullptr_t kNullPtr;
     return kNullPtr;
   }
+
   size_t size() const override { return this->max_size(); }
-  size_t max_size() const override { return 0u; }
+  size_t max_size() const override { return 0; }
 
   static EmptyPortion* instance() noexcept {
     static EmptyPortion kInstance;
@@ -319,7 +289,7 @@ template<typename T>
 class PortionBaseIter
     : public DefaultIterator<PortionBaseIter<T>,
                              std::random_access_iterator_tag,
-                             const T> {
+                             T> {
   V_DEFAULT_ITERATOR_DERIVED_HEAD(PortionBaseIter);
  public:
   explicit PortionBaseIter(const PortionBase<T>& p, size_t index)
@@ -327,7 +297,7 @@ class PortionBaseIter
         index_(index) {}
   template<typename T2>
   PortionBaseIter(const PortionBaseIter<T2>& other,
-                      V_DEFAULT_ITERATOR_DISABLE_NONCONVERTIBLE(T2))
+                  V_DEFAULT_ITERATOR_DISABLE_NONCONVERTIBLE(T2))
       : p_(other.p_),
         index_(other.index_) {}
   PortionBaseIter() = default;
