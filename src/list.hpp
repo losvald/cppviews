@@ -180,6 +180,69 @@ class List1DForwardIter
   const ListType* list_;
 };
 
+template<class OuterIter, class Indexer, typename DataType>
+class List1DIter
+    : public DefaultIterator<List1DIter<OuterIter, Indexer, DataType>,
+                             std::random_access_iterator_tag,
+                             DataType>,
+      public View<DataType>::IteratorBase {
+  V_DEFAULT_ITERATOR_DERIVED_HEAD(List1DIter);
+  template<class, class, class> friend class List1DIter;
+ public:
+  explicit List1DIter(const OuterIter& outer_begin, size_t index,
+                      const Indexer& indexer)
+      : indexer_(&indexer),
+        outer_begin_(outer_begin),
+        global_index_(index) {}
+  template<class OuterIter2, typename DataType2>
+  List1DIter(const List1DIter<OuterIter2, Indexer, DataType2>& other,
+             typename std::enable_if<And2(
+                 std::is_convertible<OuterIter2, OuterIter>::value,
+                 std::is_convertible<DataType2*, DataType*>::value),
+             Enabler>::type = Enabler())
+      : indexer_(indexer_),
+        outer_begin_(other.outer_begin_),
+        global_index_(other.global_index_) {}
+  List1DIter() = default;
+
+ protected:
+  V_DEF_VIEW_ITER_IS_EQUAL(DataType, List1DIter)
+
+  template<class OuterIter2, typename DataType2>
+  bool IsEqual(const List1DIter<OuterIter2, Indexer, DataType2>& other) const
+  override {
+    return global_index_ == other.global_index_;
+  }
+
+  void Increment() override { ++global_index_; }
+  void Advance(typename DefaultIterator_::difference_type n) {
+    global_index_ += n;
+  }
+
+  template<class OuterIter2, typename DataType2>
+  typename DefaultIterator_::difference_type
+  DistanceTo(const List1DIter<OuterIter2, Indexer, DataType2>& to) const {
+    return to.global_index_ - global_index_;
+  }
+
+  DataType& ref() const override {
+    // TODO: make more efficient by using inner iterators and bucket index
+    auto pos = indexer_->fwd().get(global_index_);
+    return *((outer_begin_ + pos.first)->begin() + pos.second);
+  }
+
+ private:
+  // XXX: IndirectIterator value_type can be a proxy object type, so use pointer
+  typedef typename std::remove_pointer<
+   typename std::iterator_traits<OuterIter>::pointer>::type SubviewType;
+  typedef typename SubviewType::Iterator InnerIter;
+
+  const Indexer* indexer_;
+  OuterIter outer_begin_;
+  InnerIter inner_cur_;
+  size_t global_index_;
+};
+
 }  // namespace list_detail
 
 template<typename T, unsigned dims = 1>
@@ -368,6 +431,14 @@ class List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>
                                          List,
                                          DataType> ForwardIterator;
 
+  typedef list_detail::List1DIter<typename Container::Iterator,
+                                  Indexer,
+                                  DataType> Iterator;
+  // XXX: change to ConstIterator after adding conversions for FakePointer
+  typedef list_detail::List1DIter<typename Container::Iterator,
+                                  Indexer,
+                                  /* const */ DataType> ConstIterator;
+
   // List() : indexer_(portions_) {}
   List(Container&& pv)
       : ListBase<DataType>(list_detail::SizeSum<Container>(pv)),
@@ -407,6 +478,15 @@ class List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>
     if (this->size_)
       --it;
     return ForwardIterator(it, *this);
+  }
+
+  Iterator lbegin() const {
+    return Iterator(const_cast<Container&>(container_).begin(), 0, indexer_);
+  }
+
+  Iterator lend() const {
+    return Iterator(const_cast<Container&>(container_).begin(), this->size(),
+                    indexer_);
   }
 
  protected:

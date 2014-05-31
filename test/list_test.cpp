@@ -69,16 +69,125 @@ TEST(ListTest, SimpleNonPoly) {
       PortionVector<int, Portion<int*> >()
       .Append(arr + 4, 1)
       .Append<int>(arr + 1, 2));
-  // EXPECT_EQ(40, l2.get(0));
-  // EXPECT_EQ(10, l2.get(1));
-  // EXPECT_EQ(20, l2.get(2));
+  EXPECT_EQ(40, l2.get(0));
+  EXPECT_EQ(10, l2.get(1));
+  EXPECT_EQ(20, l2.get(2));
 
   auto l3_it = l3.begin();
   EXPECT_EQ(40, *l3_it++);
   EXPECT_EQ(10, *l3_it);
   *l3_it = 100;
   EXPECT_EQ(20, *++l3_it);
-  // EXPECT_EQ(100, l.get(1));
+  EXPECT_EQ(100, l.get(1));
+}
+
+TEST(ListTest, SimpleNonPolyRandomAccessIterator) {
+  //           0  [1   2   3   4   5][6   7]  8   9[10  11  12]
+  int arr[] = {0, 10, 20, 20, 10, 50, 0, 10, 80, 90, 0, 10, 20};
+  //               0   1   2   3   4  5   6          7   8   9
+
+  SimpleList<Portion<int*> > l(
+      PortionVector<int, Portion<int*> >()
+      .Append(arr + 1, 5)
+      .Append(arr + 6, 2)
+      .Append(arr + 10, 3));
+
+  typedef decltype(l)::Iterator Iter;
+  typedef decltype(l)::ConstIterator ConstIter;
+  Iter it = l.lend();
+  EXPECT_EQ(20, *--it);
+  EXPECT_EQ(0, *(it -= 2));
+  it = l.lbegin();
+  EXPECT_EQ(20, *++it);
+  EXPECT_EQ(10, *--it);
+  it += 2;
+  EXPECT_EQ(20, *it);
+  EXPECT_EQ(10, *(it - 2));
+  it += 4;
+  EXPECT_EQ(10, *it--);
+  EXPECT_EQ(50, *(it -= 1));
+  EXPECT_EQ(50, *(it += 0));
+  EXPECT_EQ(50, *(it - 0));
+
+  // validate interoperability
+  Iter it0 = 4 + l.lbegin();
+  EXPECT_EQ(50, *it0);
+  it0 += 1;
+  EXPECT_EQ(0, *it0);
+  ConstIter cit0 = it0;
+  // it0 = cit0;  // compile error - OK
+  EXPECT_EQ(cit0, it0);
+  EXPECT_EQ(it0, cit0);
+  EXPECT_EQ(0, *cit0);
+  cit0 += 2;
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_EQ(*it0, *cit0) << "i = " << i;
+    EXPECT_NE(it0, cit0) << "i = " << i;
+    EXPECT_EQ(2, cit0 - it0) << "i = " << i;
+    ++it0, ++cit0;
+  }
+  EXPECT_NE(*it0, *cit0);
+
+  // validate modifications through list iterators
+  it = l.lbegin() + 2;
+  *it = 30;
+  EXPECT_EQ(30, l.get(2));
+}
+
+TEST(ListTest, SimplePolyRandomAccessIterator) {
+  std::vector<int> every10 = {0, 10, 20};
+  int fifty = 50;
+
+  //    [ 0   1][ 2   3][ 4][ 5   6][ 7   8   9]
+  // =   10, 20, 20, 10, 50,  0, 10,  0, 10, 20
+  SimpleList<PortionBase<int> > l(
+      PortionVector<int>()
+      .Append(every10.begin() + 1, 2)
+      .Append(every10.rbegin(), 2)
+      .Append(static_cast<int&>(fifty))
+      .Append(every10.begin(), 2)
+      .Append(every10.data(), 3));
+
+  typedef decltype(l)::Iterator Iter;
+  typedef decltype(l)::ConstIterator ConstIter;
+  Iter it = l.lend();
+  EXPECT_EQ(20, *--it);
+  EXPECT_EQ(0, *(it -= 2));
+  it = l.lbegin();
+  EXPECT_EQ(20, *++it);
+  EXPECT_EQ(10, *--it);
+  it += 2;
+  EXPECT_EQ(20, *it);
+  EXPECT_EQ(10, *(it - 2));
+  it += 4;
+  EXPECT_EQ(10, *it--);
+  EXPECT_EQ(50, *(it -= 1));
+  EXPECT_EQ(50, *(it += 0));
+  EXPECT_EQ(50, *(it - 0));
+
+  // validate interoperability
+  Iter it0 = 4 + l.lbegin();
+  EXPECT_EQ(50, *it0);
+  it0 += 1;
+  EXPECT_EQ(0, *it0);
+  ConstIter cit0 = it0;
+  // it0 = cit0;  // compile error - OK
+  EXPECT_EQ(cit0, it0);
+  EXPECT_EQ(it0, cit0);
+  EXPECT_EQ(0, *cit0);
+  cit0 += 2;
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_EQ(*it0, *cit0) << "i = " << i;
+    EXPECT_NE(it0, cit0) << "i = " << i;
+    EXPECT_EQ(2, cit0 - it0) << "i = " << i;
+    ++it0, ++cit0;
+  }
+  EXPECT_NE(*it0, *cit0);
+
+  // validate modifications through list iterators
+  it = l.lbegin() + 2;
+  *it = 30;
+  EXPECT_EQ(30, l.get(2));
 }
 
 template<class L>
