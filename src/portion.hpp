@@ -26,6 +26,8 @@ class PortionBase {
 
   static constexpr unsigned kDims = 1;  // used by List
 
+  virtual ~PortionBase() noexcept = default;
+
   virtual void Clear() = 0;
 
   virtual T& get(size_t index) const = 0;

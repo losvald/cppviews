@@ -71,6 +71,7 @@ class View {
 
   View(size_t size) : size_(size) {}
   View() = default;
+  virtual ~View() noexcept = default;
 
   size_t size() const { return size_; }
   virtual size_t max_size() const { return std::numeric_limits<size_t>::max(); }

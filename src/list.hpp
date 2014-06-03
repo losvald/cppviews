@@ -265,6 +265,7 @@ class ListBase : public View<T> {
       // static_assert(1 + sizeof...(Sizes) == dims,
       //               "The number of sizes does not match dims");
     }
+  virtual ~ListBase() noexcept = default;
 
   virtual T& get(const SizeArray& indexes) const = 0;
 
