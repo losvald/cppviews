@@ -113,3 +113,34 @@ TEST(ImmutableSkipListTest, GetOffsetUniqueSizes) {
     }
   }
 }
+
+TEST(ImmutableSkipListTest, GetZeroSize) {
+  struct BucketSizeGetter {
+    size_t operator()(size_t bkt_ind) const {
+      switch (bkt_ind) {
+        case 0: return 0;
+        case 1: return 2;
+        case 2: return 1;
+        case 3: return 0;
+        case 4: return 0;
+        case 5: return 2;
+        case 6: return 0;
+        default:
+          ADD_FAILURE();
+      }
+    }
+  };
+  ImmutableSkipList<BucketSizeGetter> sl(7);
+  typedef decltype(sl)::Position Pos;
+
+  // validate it skips if the first bucket has size 0
+  EXPECT_EQ(Pos(1, 0), sl.get(0));
+  EXPECT_EQ(Pos(1, 1), sl.get(1));
+
+  // validate it skips multiple zero buckets
+  EXPECT_EQ(Pos(5, 0), sl.get(3));
+  EXPECT_EQ(Pos(5, 1), sl.get(4));
+
+  // validate the position is the beginning of the past-the-last bucket
+  EXPECT_EQ(Pos(7, 0), sl.get(5));
+}
