@@ -2,6 +2,7 @@
 #include "test.hpp"
 
 #include <functional>
+#include <memory>
 #include <vector>
 #include <set>
 #include <type_traits>
@@ -74,6 +75,11 @@ TEST(PortionTest, Pointer) {
   EXPECT_EQ(30, b[0]);
   EXPECT_EQ(20, b[1]);
   EXPECT_EQ(10, b[2]);
+
+  b.ShrinkToFirst();
+  EXPECT_EQ(1, b.size());
+  EXPECT_NE(b.begin(), b.end());
+  EXPECT_EQ(++b.begin(), b.end());
 }
 
 TEST(PortionTest, RandomIter) {
@@ -116,6 +122,13 @@ TEST(PortionTest, RandomIter) {
   for (int index = v.size(); --index; )
     EXPECT_EQ(far[index], facr[index]);
   // facr[0] = 3000;         // compile error - OK
+
+
+  // validate shrinking
+  facr.ShrinkToFirst();
+  EXPECT_EQ(1, facr.size());
+  EXPECT_NE(facr.begin(), facr.end());
+  EXPECT_EQ(++facr.begin(), facr.end());
 }
 
 TEST(PortionTest, BidirIter) {
@@ -180,6 +193,11 @@ TEST(PortionTest, PortionBaseIterator) {
   EXPECT_EQ(p.begin(), pit);
   pit += 3;
   EXPECT_EQ(p.end(), pit);
+
+  const_cast<PortionBase<int>&>(p).ShrinkToFirst();
+  EXPECT_EQ(1, p.size());
+  EXPECT_NE(p.begin(), p.end());
+  EXPECT_EQ(++p.begin(), p.end());
 }
 
 TEST(SingletonPortionTest, Int) {
@@ -217,6 +235,9 @@ TEST(SingletonPortionTest, Int) {
 
   // const int k = 10;
   // SingletonPortion<int> c(k);           // compile error - OK
+
+  p.ShrinkToFirst();
+  EXPECT_EQ(1, p.size());
 }
 
 TEST(SingletonPortionTest, IntConst) {
@@ -280,6 +301,11 @@ TEST(SingletonPortionTest, Iterator) {
   *it = 'w';
   EXPECT_EQ('w', *cit);
   // *cit = 'c';  // compile error - OK
+
+  sp.ShrinkToFirst();
+  EXPECT_EQ(c, *sp.begin());
+  EXPECT_NE(sp.begin(), sp.end());
+  EXPECT_EQ(++sp.begin(), sp.end());
 }
 
 TEST(SingletonMultiportionTest, Constructor) {
@@ -320,6 +346,12 @@ TEST(SingletonMultiportionTest, Constructor) {
   EXPECT_EQ(2000, r[1]);
   *--r.end() = 3000;
   EXPECT_EQ(3000, c);
+
+  r.ShrinkToFirst();
+  EXPECT_EQ(1, r.size());
+  EXPECT_EQ(100, *r.cbegin());
+  EXPECT_NE(r.begin(), r.end());
+  EXPECT_EQ(++r.begin(), r.end());
 }
 
 TEST(SingletonMultiportionTest, PushPop) {
@@ -334,7 +366,7 @@ TEST(SingletonMultiportionTest, PushPop) {
   p.PushFront(a);
   EXPECT_EQ(2, p.size());
   p.PushBack(c);
-  p.Shrink();
+  p.ShrinkToFit();
   EXPECT_EQ(3, p.size());
   EXPECT_EQ(30, p.back());
   EXPECT_EQ(10, p.front());
@@ -344,4 +376,48 @@ TEST(SingletonMultiportionTest, PushPop) {
   p.PopBack();
   EXPECT_EQ(p.front(), p.back());
   EXPECT_EQ(20, p.back());
+}
+
+TEST(PortionTest, DummyPortionMethods) {
+  DummyPortion<int> p;
+  EXPECT_EQ(0, p.max_size());  // validate it can store no data
+
+  // validate iteration
+  EXPECT_NE(p.begin(), p.end());
+  EXPECT_EQ(++p.begin(), p.end());
+
+  // validate the size is 1 before and after shrinking
+  EXPECT_EQ(1, p.size());
+  p.ShrinkToFirst();
+  EXPECT_EQ(1, p.size());
+}
+
+TEST(PortionTest, DummyPortionAllocation) {
+  DummyPortion<int>* p = new DummyPortion<int>();
+  DummyPortion<int>* p2 = new DummyPortion<int>();
+  EXPECT_EQ(p, p2);
+  EXPECT_EQ(DummyPortion<int>::instance(), p);
+
+  delete p;
+  ASSERT_EQ(DummyPortion<int>::instance(), p);
+
+  delete p2;
+  ASSERT_EQ(DummyPortion<int>::instance(), p2);
+
+  ASSERT_NO_THROW({
+      std::unique_ptr<DummyPortion<int> > p_ptr(new DummyPortion<int>());
+      EXPECT_EQ(p, &*p_ptr);
+      EXPECT_EQ(DummyPortion<int>::instance(), &*p_ptr);
+    });
+  EXPECT_EQ(DummyPortion<int>::instance(), p);
+
+  ASSERT_NO_THROW({
+      std::unique_ptr<DummyPortion<int> > p_ptr(DummyPortion<int>::instance());
+    EXPECT_EQ(DummyPortion<int>::instance(), &*p_ptr);
+  });
+  EXPECT_EQ(DummyPortion<int>::instance(), p);
+
+  // char buf[sizeof(DummyPortion<int>)];
+  // DummyPortion<int>* pp = ::new(buf) DummyPortion<int>();
+  // EXPECT_NE(DummyPortion<int>::instance(), pp);
 }

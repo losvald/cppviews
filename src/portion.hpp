@@ -28,7 +28,7 @@ class PortionBase {
 
   virtual ~PortionBase() noexcept = default;
 
-  virtual void Clear() = 0;
+  virtual void ShrinkToFirst() = 0;
 
   virtual T& get(size_t index) const = 0;
   virtual size_t size() const = 0;
@@ -60,10 +60,9 @@ class Portion : public PortionBase<T> {
   constexpr Portion(DiffType size, const ForwardIter& end)
       : begin_(std::next(end, -size)),
         size_(size) {}
-  // constexpr Portion(nullptr_t&&) : size_(0) {}
   Portion() = default;
 
-  void Clear() override { size_ = 0; }
+  void ShrinkToFirst() override { size_ = 1; }
 
   constexpr RefType operator[](DiffType index) const {
     return *std::next(begin_, index);
@@ -115,11 +114,10 @@ class Portion<T, T> : public PortionBase<T> {
   typedef detail::SingletonPortionIter<const T> ConstIterator;
 
   constexpr Portion(T& value) : ptr_(&value) {}
-  // Portion(std::nullptr_t&&) : ptr_(nullptr) {} // allow empty
   Portion(T&& value) = delete;          // disallow references to temporaries
   Portion() = default;
 
-  void Clear() override { ptr_ = nullptr; }
+  void ShrinkToFirst() override {}
 
   constexpr operator T&() const { return *ptr_; }
 
@@ -131,9 +129,9 @@ class Portion<T, T> : public PortionBase<T> {
   constexpr size_t max_size() const override { return 1; }
 
   Iterator begin() const { return Iterator(ptr_, false); }
-  Iterator end() const { return Iterator(ptr_, ptr_ != nullptr); }
+  Iterator end() const { return Iterator(ptr_, true); }
   ConstIterator cbegin() const { return ConstIterator(ptr_, false); }
-  ConstIterator cend() const { return ConstIterator(ptr_, ptr_ != nullptr); }
+  ConstIterator cend() const { return ConstIterator(ptr_, true); }
 
  private:
   T* ptr_;
@@ -161,7 +159,10 @@ class Portion<T[], T> : public PortionBase<T> {
   }
   Portion() = default;
 
-  void Clear() { ptrs_.clear(); }
+  void ShrinkToFirst() {
+    ptrs_.resize(1);
+    ptrs_.shrink_to_fit();
+  }
 
   constexpr T& operator[](size_t index) const { return *ptrs_[index]; }
 
@@ -169,7 +170,7 @@ class Portion<T[], T> : public PortionBase<T> {
   void PushBack(T& value) { ptrs_.push_back(&value); }
   void PopFront() { ptrs_.pop_front(); }
   void PopBack() { ptrs_.pop_back(); }
-  void Shrink() { ptrs_.shrink_to_fit(); }
+  void ShrinkToFit() { ptrs_.shrink_to_fit(); }
 
   constexpr T& get(size_t index) const override { return (*this)[index]; }
   constexpr size_t size() const override { return ptrs_.size(); }
@@ -194,27 +195,37 @@ class Portion<T[], T> : public PortionBase<T> {
   PointerDeque ptrs_;
 };
 
-// specialization for empty portion
+// specialization for dummy portion
 
-using EmptyPortion = Portion<void, std::nullptr_t>;
+template<typename T>
+using DummyPortion = Portion<void, T>;
 
-template<>
-class Portion<void, std::nullptr_t> : public PortionBase<std::nullptr_t> {
+template<typename T>
+class Portion<void, T> : public PortionBase<T> {
  public:
-  void* operator new(size_t sz) noexcept { return instance(); }
-  void operator delete(void* ptr) noexcept {}
+  Portion(const Portion&) = delete;
+  Portion(Portion&&) = delete;
+  Portion() = default;
 
-  void Clear() override {}
-  std::nullptr_t& get(size_t index) const override {
-    static nullptr_t kNullPtr;
-    return kNullPtr;
+  void* operator new(size_t sz) noexcept { return instance(); }
+  void operator delete(void* ptr) noexcept {
+    // XXX: is this thread-safe?
+    // delete calls destructor, so we need to re-construct the object
+    ::new(ptr) Portion;  // TODO: double-check that it's not Undefined Behavior
   }
 
-  size_t size() const override { return this->max_size(); }
+  void ShrinkToFirst() override {}
+
+  // get() should never be called on a dummy portion
+  T& get(size_t index) const override {
+    return *static_cast<T*>(nullptr);  // Undefined Behavior, but fast
+  }
+
+  size_t size() const override { return 1; }
   size_t max_size() const override { return 0; }
 
-  static EmptyPortion* instance() noexcept {
-    static EmptyPortion kInstance;
+  static Portion* instance() noexcept {
+    static Portion kInstance;
     return &kInstance;
   }
 };
@@ -243,8 +254,9 @@ constexpr SingletonPortion<T> MakePortion(T& value) {
   return SingletonPortion<T>(value);
 }
 
-constexpr EmptyPortion MakePortion() {
-  return EmptyPortion();
+template<typename T>
+constexpr DummyPortion<T> MakePortion() {
+  return DummyPortion<T>();
 }
 
 template<class ForwardIter>
@@ -265,8 +277,9 @@ constexpr SingletonPortion<T>* AllocPortion(T& value) {
   return SingletonPortion<T>(value);
 }
 
-inline EmptyPortion* AllocPortion() {
-  return EmptyPortion::instance();
+template<typename T>
+inline DummyPortion<T>* AllocPortion() {
+  return DummyPortion<T>::instance();
 }
 
 struct PortionFactory {

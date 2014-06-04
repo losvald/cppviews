@@ -400,7 +400,7 @@ struct SimpleListHelper {
   template<class Container>
   static void AppendEmpty(Container* c) {
     c->Append(c->back());
-    c->back().Clear();
+    c->back().ShrinkToFirst();
   }
 };
 
@@ -411,7 +411,7 @@ struct SimpleListHelper<PortionBase<T> > {
     typename Container::SizeType size = c->size();
     // c->Append();  // XXX: this should work after fixing a bug
     c->GrowBack();
-    c->reset(size, nullptr);
+    c->reset(size, new DummyPortion<T>());
   }
 };
 
@@ -444,10 +444,7 @@ class List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>
   List(Container&& pv)
       : ListBase<DataType>(list_detail::SizeSum<Container>(pv)),
         container_(std::forward<Container>(pv)),
-        indexer_(container_) {
-    // put a sentinel empty portion at the back
-    if (container_.size())
-      SimpleListHelper<P>::template AppendEmpty(&container_);
+        indexer_(AppendDummy(container_)) {
 
     container_.Shrink();
   }
@@ -501,6 +498,13 @@ class List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>
   }
 
  private:
+  static Container& AppendDummy(Container& container) {
+    // put a sentinel empty portion at the back
+    if (container.size())
+      SimpleListHelper<P>::template AppendEmpty(&container);
+    return container;
+  }
+
   Container container_;
   Indexer indexer_;
 };
