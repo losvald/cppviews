@@ -1,3 +1,4 @@
+#include <iostream>
 #ifndef CPPVIEWS_SRC_PORTION_HPP_
 #define CPPVIEWS_SRC_PORTION_HPP_
 
@@ -330,7 +331,7 @@ class PortionBaseIter
   }
   template<typename T2>
   bool IsEqual(const PortionBaseIter<T2>& other) const {
-    return p_ == other.p_ && index_ == other.index_;
+    return index_ == other.index_;
   }
   typename DefaultIterator_::reference ref() const { return p_->get(index_); }
 
@@ -360,6 +361,7 @@ class SingletonPortionIter
   void Increment() { end_ = true; }
   void Decrement() { end_ = false; }
   void Advance(typename DefaultIterator_::difference_type distance) {
+    // avoid branching by using bitwise operators
     end_ = (end_ & (distance >= 0)) | (distance > 0);
   }
   template<typename T2>
@@ -369,7 +371,7 @@ class SingletonPortionIter
   }
   template<typename T2>
   bool IsEqual(const SingletonPortionIter<T2>& other) const {
-    return datum_ == other.datum_ && end_ == other.end_;
+    return end_ == other.end_;
   }
   typename DefaultIterator_::reference ref() const { return *datum_; }
 
