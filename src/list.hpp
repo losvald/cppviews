@@ -11,6 +11,7 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -106,6 +107,7 @@ class LinearizedMonotonicIndexer {
   LinearizedMonotonicIndexer(const SubviewContainer& c) :
       bsg_(c),
       fwd_(c.size(), bsg_) {}
+  size_t bucket_size(size_t index) const { return bsg_(index); }
   const ImmutableSkipListType& fwd() const { return fwd_; }
  private:
   ListSizeGetter<SubviewContainer, dim> bsg_;
@@ -193,7 +195,10 @@ class List1DIter
                       const Indexer& indexer)
       : indexer_(&indexer),
         outer_begin_(outer_begin),
-        global_index_(index) {}
+        global_index_(index) {
+    std::tie(bucket_index_, local_index_) = indexer_->fwd().get(index);
+    UpdateInner(local_index_);
+  }
   template<class OuterIter2, typename DataType2>
   List1DIter(const List1DIter<OuterIter2, Indexer, DataType2>& other,
              typename std::enable_if<And2(
@@ -202,6 +207,9 @@ class List1DIter
              Enabler>::type = Enabler())
       : indexer_(indexer_),
         outer_begin_(other.outer_begin_),
+        inner_cur_(other.inner_cur_),
+        bucket_index_(other.bucket_index_),
+        local_index_(other.local_index_),
         global_index_(other.global_index_) {}
   List1DIter() = default;
 
@@ -214,9 +222,31 @@ class List1DIter
     return global_index_ == other.global_index_;
   }
 
-  void Increment() override { ++global_index_; }
+  void Increment() override {
+    ++global_index_;
+    if (++local_index_ == indexer_->bucket_size(bucket_index_)) {
+      // rely on the invariant that list contains no empty portions/subviews,
+      // except the last one which is used as a sentinel
+      // (this reduces the time complexity of this operation)
+      UpdateInner(0);
+    } else
+      ++inner_cur_;
+  }
+
   void Advance(typename DefaultIterator_::difference_type n) {
     global_index_ += n;
+
+    // TODO implement indexer_->bwd() and use it
+    if (n <= 0) {
+      std::tie(bucket_index_, local_index_) = indexer_->fwd()
+          .get(global_index_);
+      UpdateInner(local_index_);
+      return;
+    }
+
+    std::tie(bucket_index_, local_index_) = indexer_->fwd()
+        .get(local_index_ + n, bucket_index_);
+    UpdateInner(local_index_);
   }
 
   template<class OuterIter2, typename DataType2>
@@ -225,11 +255,7 @@ class List1DIter
     return to.global_index_ - global_index_;
   }
 
-  DataType& ref() const override {
-    // TODO: make more efficient by using inner iterators and bucket index
-    auto pos = indexer_->fwd().get(global_index_);
-    return *((outer_begin_ + pos.first)->begin() + pos.second);
-  }
+  DataType& ref() const override { return *inner_cur_; }
 
  private:
   // XXX: IndirectIterator value_type can be a proxy object type, so use pointer
@@ -237,9 +263,15 @@ class List1DIter
    typename std::iterator_traits<OuterIter>::pointer>::type SubviewType;
   typedef typename SubviewType::Iterator InnerIter;
 
+  void UpdateInner(size_t local_index) {
+    inner_cur_ = (outer_begin_ + bucket_index_)->begin() + local_index;
+  }
+
   const Indexer* indexer_;
   OuterIter outer_begin_;
   InnerIter inner_cur_;
+  size_t bucket_index_;
+  size_t local_index_;
   size_t global_index_;
 };
 
