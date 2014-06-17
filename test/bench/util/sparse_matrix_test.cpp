@@ -36,20 +36,19 @@ TEST(SparseMatrixTest, Small) {
 
   // validate iteration over columns
   auto r = sm.nonzero_col_range(0, 0, 4);
-  ASSERT_EQ(2, r.second - r.first);
   EXPECT_EQ(1, *r.first++);
   EXPECT_EQ(3, *r.first++);
   EXPECT_EQ(r.first, r.second);
   r = sm.nonzero_col_range(1, 1, 3);
-  ASSERT_EQ(1, r.second - r.first);
-  EXPECT_EQ(1, *r.first);
+  EXPECT_EQ(1, *r.first++);
+  EXPECT_EQ(r.first, r.second);
 
   // validate iteration over rows
   r = sm.nonzero_row_range(3, 2, 3);
-  ASSERT_EQ(1, r.second - r.first);
-  EXPECT_EQ(2, *r.first);
+  EXPECT_EQ(2, *r.first++);
+  EXPECT_EQ(r.first, r.second);
   r = sm.nonzero_row_range(2, 0, 3);
-  ASSERT_EQ(0, r.second - r.first);
+  EXPECT_EQ(r.first, r.second);
 }
 
 TEST(SparseMatrixTest, AllZeroes) {
@@ -64,4 +63,19 @@ TEST(SparseMatrixTest, AllZeroes) {
   for (Coord row = 0; row < sm.row_count(); ++row)
     for (Coord col = 0; col < sm.col_count(); ++col)
       ASSERT_EQ(0, sm(row, col));
+
+  auto r = sm.nonzero_col_range(2, 3, 4);
+  EXPECT_EQ(r.first, r.second);
+}
+
+TEST(SparseMatrixTest, Huge) {
+  istringstream ss("123456789 987654321 2\n"
+                   "111111112 222222223 5\n"
+                   "333333334 444444445 7");
+  SparseMatrix<double, size_t> sm;
+  ASSERT_NO_THROW({
+      sm.Init(ss);
+      ASSERT_EQ(5, sm(111111111, 222222222));
+      ASSERT_EQ(7, sm(333333333, 444444444));
+    });
 }

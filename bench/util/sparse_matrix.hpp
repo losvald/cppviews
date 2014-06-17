@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <map>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -10,11 +11,11 @@
 template<typename T = double, class Coord = int>
 class SparseMatrix {
   struct PointHasher;
-  typedef std::vector< std::vector<Coord> > NonZeroList;
+  typedef std::map< Coord, std::vector<Coord> > NonZeroList;
 
  public:
   typedef std::pair<Coord, Coord> Point;
-  typedef typename NonZeroList::value_type::const_iterator CoordIter;
+  typedef typename NonZeroList::mapped_type::const_iterator CoordIter;
   typedef std::pair<CoordIter, CoordIter> CoordIterRange;
 
   SparseMatrix() = default;
@@ -22,10 +23,7 @@ class SparseMatrix {
   template<class InputStream>
   void Init(InputStream& is) {
     size_t n;
-    Coord row_cnt, col_cnt;
-    is >> row_cnt >> col_cnt >> n;
-    rows_.resize(col_cnt);
-    cols_.resize(row_cnt);
+    is >> row_count_ >> col_count_ >> n;
     values_.reserve(n);
     while (n--) {
       Coord row, col; T val;
@@ -60,10 +58,10 @@ class SparseMatrix {
     return r;
   }
 
-  Coord row_count() const { return cols_.size(); }
-  Coord col_count() const { return rows_.size(); }
+  Coord row_count() const { return row_count_; }
+  Coord col_count() const { return col_count_; }
   size_t nonzero_count() const { return values_.size(); }
-  size_t element_count() const { return rows_.size() * cols_.size(); }
+  size_t element_count() const { return size_t(row_count_) * col_count_; }
 
  private:
   typedef std::unordered_map<Point, T, PointHasher> ValueMap;
@@ -75,15 +73,26 @@ class SparseMatrix {
   };
 
   static void SortAndShrink(NonZeroList& list) {
-    for (auto& indices : list) {
+    for (auto& it : list) {
+      auto& indices = it.second;
       indices.shrink_to_fit();
       std::sort(indices.begin(), indices.end());
     }
+
+    // insert a sentinel vector to handle the case of all zeroes
+    if (list.empty())
+      list.emplace(Coord(), std::vector<Coord>(Coord()));
   }
 
   static void GetRange(const NonZeroList& list, Coord i, Coord from, Coord to,
                        CoordIterRange* r) {
-    auto begin = list[i].begin() + from, end = list[i].end();
+    auto lr = list.equal_range(i);
+    if (lr.first == lr.second) {
+      r->first = r->second = list.begin()->second.end();
+      return;
+    }
+
+    auto begin = lr.first->second.begin(), end = lr.first->second.end();
     r->first = lower_bound(begin, end, from);
     r->second = lower_bound(r->first, end, to);
   }
@@ -91,6 +100,8 @@ class SparseMatrix {
   ValueMap values_;
   NonZeroList rows_;
   NonZeroList cols_;
+  Coord row_count_;
+  Coord col_count_;
 };
 
 #endif  /* CPPVIEWS_BENCH_GUI_UTIL_SPARSE_MATRIX_HPP_ */
