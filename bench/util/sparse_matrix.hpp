@@ -20,8 +20,15 @@ class SparseMatrix {
 
   SparseMatrix() = default;
 
-  template<class InputStream>
+  template<class InputStream, size_t max_line_length = 1024>
   void Init(InputStream& is) {
+    // skip the header (lines beginning with '%', if any)
+    decltype(is.tellg()) offset = 0;
+    for (char buf[max_line_length + 1];
+         is.getline(buf, sizeof(buf)) && buf[0] == '%'; )
+      offset = is.tellg();
+    is.seekg(offset);
+
     size_t n;
     is >> row_count_ >> col_count_ >> n;
     values_.reserve(n);

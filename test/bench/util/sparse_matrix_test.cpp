@@ -79,3 +79,19 @@ TEST(SparseMatrixTest, Huge) {
       ASSERT_EQ(7, sm(333333333, 444444444));
     });
 }
+
+TEST(SparseMatrixTest, InitWithHeader) {
+  istringstream ss("%%MatrixMarket matrix coordinate real general\n"
+                   "%============================================\n"
+                   "% Line 3 should not be read, either.\n"
+                   "%\n"
+                   "%foo bar\n"
+                   "5 7 1\n"
+                   "3\t4\t6");
+  SparseMatrix<> sm;
+  sm.Init(ss);
+  EXPECT_EQ(5, sm.row_count());
+  EXPECT_EQ(7, sm.col_count());
+  EXPECT_EQ(1, sm.nonzero_count());
+  EXPECT_EQ(6, sm(2, 3));
+}
