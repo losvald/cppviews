@@ -12,9 +12,11 @@ template<typename T = double, class Coord = int>
 class SparseMatrix {
   struct PointHasher;
   typedef std::map< Coord, std::vector<Coord> > NonZeroList;
+  typedef std::pair<Coord, Coord> Point;
 
  public:
-  typedef std::pair<Coord, Coord> Point;
+  typedef T ValueType;
+  typedef Coord CoordType;
   typedef typename NonZeroList::mapped_type::const_iterator CoordIter;
   typedef std::pair<CoordIter, CoordIter> CoordIterRange;
 
@@ -22,6 +24,9 @@ class SparseMatrix {
 
   template<class InputStream, size_t max_line_length = 1024>
   void Init(InputStream& is) {
+    rows_.clear(), cols_.clear();
+    values_.clear();
+
     // skip the header (lines beginning with '%', if any)
     decltype(is.tellg()) offset = 0;
     for (char buf[max_line_length + 1];
@@ -105,10 +110,8 @@ class SparseMatrix {
   }
 
   ValueMap values_;
-  NonZeroList rows_;
-  NonZeroList cols_;
-  Coord row_count_;
-  Coord col_count_;
+  NonZeroList rows_, cols_;
+  Coord row_count_, col_count_;
 };
 
 #endif  /* CPPVIEWS_BENCH_GUI_UTIL_SPARSE_MATRIX_HPP_ */
