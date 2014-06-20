@@ -3,4 +3,9 @@ LDADD = $(WX_LIBS)
 bin_PROGRAMS = smvd
 
 # Sparse Matrix View Designer
-smvd_SOURCES = smvd.cpp gen/smvd_gui.cpp
+smvd_SOURCES = smvd.cpp \
+	smvd_display.cpp \
+	smvd_frame.cpp \
+	smvd_navigator.cpp \
+	sm_displayable.cpp \
+	gen/smvd_gui.cpp
