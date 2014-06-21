@@ -8,6 +8,16 @@
 #include <utility>
 #include <vector>
 
+// A simple time-efficient implementation of an immutable sparse matrix
+// Provides efficient iteration of non-zero elements by rows/cols,
+// e.g. to iterate over a range [row_from, row_to) x [col_from, col_to):
+//   for (int row = row_from; row < row_to; ++row) {
+//     for (auto col_range = sm.nonzero_col_range(row, col_from, col_to);
+//          col_range.first != col_range.second; ++col_range.first) {
+//       int col = *col_range.first;
+//       // use sm(row, col)
+//       ...
+//     }
 template<typename T = double, class Coord = int>
 class SparseMatrix {
   struct PointHasher;
@@ -22,6 +32,11 @@ class SparseMatrix {
 
   SparseMatrix() = default;
 
+  // Reads a matrix stored in MatrixMarket-like format, i.e.:
+  // <num_rows> <num_cols> <num_entries>
+  // <row_1> <col_1> <val_1>
+  // ...
+  // Note: the header (lines starting with '%' are ignored).
   template<class InputStream, size_t max_line_length = 1024>
   void Init(InputStream& is) {
     rows_.clear(), cols_.clear();
@@ -80,7 +95,7 @@ class SparseMatrix {
 
   struct PointHasher {
     size_t operator()(const Point& p) const {
-      return p.first << (std::numeric_limits<Coord>::digits >> 1) | p.second;
+      return p.first << (std::numeric_limits<Coord>::digits >> 1) ^ p.second;
     }
   };
 
