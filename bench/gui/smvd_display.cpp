@@ -1,5 +1,7 @@
 #include "smvd_display.hpp"
 #include "smvd_navigator.hpp"
+#include "sm/view_tree.hpp"
+#include "sm/view_type.hpp"
 
 #include "smvd.hpp"
 
@@ -23,10 +25,7 @@ END_EVENT_TABLE()
 Display::Display(wxWindow* parent, wxWindowID id,
                  const wxPoint& pos, const wxSize& size,
                  long style)
-    : wxScrolledCanvas(parent, id, pos, size, style) {
-  // DisableKeyboardScrolling();
-  SetVirtualSize(1000, 1000);  // TODO
-}
+    : wxScrolledCanvas(parent, id, pos, size, style) {}
 
 void Display::DisplayMatrix() {
   UpdateZoomRange();
@@ -51,7 +50,7 @@ void Display::Zoom(int zoom_factor_lg) {
 void Display::OnDraw(wxDC& dc) {
   int x, y;
   GetClientSize(&x, &y);
-  wxLogVerbose("Repainting Display #%d: %d x %d", x, y);
+  wxLogVerbose("Repainting %d x %d Display", x, y);
 
   if (!wxGetApp().IsMatrixLoaded())
     return;

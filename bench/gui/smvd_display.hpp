@@ -3,6 +3,8 @@
 
 #include "sm_displayable.hpp"
 
+#include <wx/scrolwin.h>
+
 class wxDC;
 class wxSlider;
 class wxStaticText;

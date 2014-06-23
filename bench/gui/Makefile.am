@@ -8,4 +8,6 @@ smvd_SOURCES = smvd.cpp \
 	smvd_frame.cpp \
 	smvd_navigator.cpp \
 	sm_displayable.cpp \
+	sm/view_tree.cpp \
+	sm/view_type.cpp \
 	gen/smvd_gui.cpp

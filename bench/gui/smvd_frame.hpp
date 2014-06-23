@@ -13,6 +13,7 @@ class MainFrame : public MainFrameBase {
   void OnOpen(wxCommandEvent&) override;
   void OnQuit(wxCommandEvent&) override;
   void OnZoomSliderScroll(wxScrollEvent&) override;
+  void OnViewChoice(wxCommandEvent&) override;
  private:
   void DisplayMatrix();
 };
