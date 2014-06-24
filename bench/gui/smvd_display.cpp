@@ -1,22 +1,27 @@
 #include "smvd_display.hpp"
 #include "smvd_navigator.hpp"
+#include "sm/view_creator.hpp"
 #include "sm/view_tree.hpp"
 #include "sm/view_type.hpp"
 
 #include "smvd.hpp"
 
-#include <wx/dc.h>
+#include <wx/dcclient.h>
+#include <wx/dcgraph.h>
 #include <wx/log.h>
+#include <wx/graphics.h>
 #include <wx/slider.h>
 
 #include <algorithm>
 #include <chrono>
+#include <queue>
 
 BEGIN_EVENT_TABLE(Display, wxScrolledCanvas)
 EVT_ENTER_WINDOW(Display::OnMouseEnter)
 EVT_LEAVE_WINDOW(Display::OnMouseLeave)
 EVT_MOTION(Display::OnMouseMotion)
 EVT_MOUSEWHEEL(Display::OnMouseWheel)
+EVT_PAINT(Display::OnPaint)
 EVT_RIGHT_DOWN(Display::OnMouseRightDown)
 EVT_RIGHT_UP(Display::OnMouseRightUp)
 EVT_SIZE(Display::OnSize)
@@ -25,7 +30,12 @@ END_EVENT_TABLE()
 Display::Display(wxWindow* parent, wxWindowID id,
                  const wxPoint& pos, const wxSize& size,
                  long style)
-    : wxScrolledCanvas(parent, id, pos, size, style) {}
+    : wxScrolledCanvas(parent, id, pos, size, style) {
+  // typedef ViewCreator<kViewTypeChain> VC;
+  // static VC vc;
+  // ViewCreatorBase& b = vc;
+  // Bind(wxEVT_LEFT_DOWN, &ViewCreatorBase::OnMouseLeftDown, &b);
+}
 
 void Display::DisplayMatrix() {
   UpdateZoomRange();
@@ -47,7 +57,10 @@ void Display::Zoom(int zoom_factor_lg) {
   zoom_label_->SetLabelText(wxString::Format("%d", zoom_factor_lg_));
 }
 
-void Display::OnDraw(wxDC& dc) {
+void Display::OnPaint(wxPaintEvent& evt) {
+  wxPaintDC dc(this);
+  DoPrepareDC(dc);
+
   int x, y;
   GetClientSize(&x, &y);
   wxLogVerbose("Repainting %d x %d Display", x, y);
@@ -63,11 +76,14 @@ void Display::OnDraw(wxDC& dc) {
   const int col_from = x;
 
   // compute the end of the visible row/col range
-  GetClientSize(&x, &y);
+  GetClientSize(&x, &y);  // Using a bit trick: x & -(x > 0) == max(x, 0)
+  const int scale_mask = (1 << (zoom_factor_lg_ & -(zoom_factor_lg_ > 0))) - 1;
   if (zoom_factor_lg_ > 0) {
-    x = (x + (1 << zoom_factor_lg_) - 1) >> zoom_factor_lg_;
-    y = (y + (1 << zoom_factor_lg_) - 1) >> zoom_factor_lg_;
+    wxASSERT(scale_mask == (1 << zoom_factor_lg_) - 1);
+    x = (x + scale_mask) >> zoom_factor_lg_;
+    y = (y + scale_mask) >> zoom_factor_lg_;
   } else {
+    wxASSERT(scale_mask == 0);
     x <<= -zoom_factor_lg_, y <<= -zoom_factor_lg_;
   }
   x += col_from, y += row_from;
@@ -84,6 +100,85 @@ void Display::OnDraw(wxDC& dc) {
                1LL * duration_cast<nanoseconds>(tp_after - tp_before).count());
 
   navigator_->SetDisplayRegion(row_from, col_from, row_to, col_to);
+
+  // Draw views
+
+  static const wxColor lvl_color[] = {
+    *wxBLACK,
+    wxColor(0xFFu, 0, 0xFFu),
+    *wxBLUE,
+    *wxGREEN,
+    *wxRED,
+  };
+  wxColor color;
+
+  // transparency (%) is going to be incremented by kAlphaNormInc from 0.3
+  float alpha_norm = 0.2f;
+  static const float kAlphaNormInc = 0.1f;
+  static const float kAlphaNormMax = 0.8f;
+
+  // pen width is going to be decremented by kPenWidthInc down to 1
+  static const int kPenWidthInc = 2;
+  int pen_width = (sizeof(lvl_color) - 1) / sizeof(wxColor) * kPenWidthInc + 1;
+
+  // create a graphics context to allow for transparent colors
+  // wxGraphicsContext *gc = wxGraphicsContext::Create(dc);
+  wxGCDC gcdc(dc);
+  auto const gc = &gcdc;
+
+  static const auto& kViewBrush = *wxTRANSPARENT_BRUSH;
+  gc->SetBrush(kViewBrush);
+  wxPen pen; pen.SetJoin(wxJOIN_MITER);
+
+  std::queue<wxTreeItemId> q;
+  q.push(view_tree_->GetRootItem());
+  int lvl_cur = -1;
+  int lvl_cnt[2] = {1, 0};
+  for (bool lvl_odd = false, lvl_done = true; !q.empty(); lvl_odd = !lvl_odd) {
+    // if a new level begins, initialize it first
+    if (lvl_done) {
+      ++lvl_cur;
+      alpha_norm = std::min(alpha_norm + kAlphaNormInc, kAlphaNormMax);
+      color.SetRGBA(lvl_color[lvl_cur].GetRGB() |
+                    (wxUint32(0xFF * alpha_norm) << 24));
+      pen.SetColour(color);
+      pen.SetWidth(pen_width -= kPenWidthInc);
+      gc->SetPen(pen);
+      wxLogVerbose("Begin drawing view level %d", lvl_cur);
+    }
+
+    // draw the view represented by the current node
+    const auto& view_id = q.front();
+    const auto& vi = view_tree_->GetViewInfo(view_id);
+    wxPoint p_tl(vi.top_left()), p_br(vi.bottom_right());
+    Scale(&p_tl.x, &p_tl.y), Scale(&p_br.x, &p_br.y);
+    p_br += wxPoint(scale_mask, scale_mask);  // round up (if zoomed)
+    int w(p_br.x - p_tl.x + 1), h(p_br.y - p_tl.y + 1);
+    // translate the coordinates as per: http://trac.wxwidgets.org/ticket/12109
+    p_tl = CalcScrolledPosition(p_tl);
+    bool selected = (view_id == view_tree_->GetSelection());
+    if (selected)
+      gc->SetBrush(wxColor(0xFFu, 0xFFu, 0, 0x60));
+    gc->DrawRectangle(p_tl.x, p_tl.y, w, h);
+    if (selected)
+      gc->SetBrush(kViewBrush);
+    wxLogVerbose("Drawing view: %s (x=%d, y=%d, w=%d, h=%d, alpha=%02X)",
+                 view_tree_->GetItemText(view_id), p_tl.x, p_tl.y, w, h,
+                 (unsigned)color.Alpha());
+
+    // pop the current node and update the current level info accordingly
+    lvl_done = (--lvl_cnt[lvl_odd] == 0);
+    q.pop();
+
+    // push children nodes and update the next level count accordingly
+    lvl_cnt[!lvl_odd] -= q.size();
+    wxTreeItemIdValue cookie;
+    for (auto id = view_tree_->GetFirstChild(view_id, cookie); id.IsOk();
+         id = view_tree_->GetNextChild(view_id, cookie)) {
+      q.push(id);
+    }
+    lvl_cnt[!lvl_odd] += q.size();
+  }
 }
 
 void Display::OnMouseMotion(wxMouseEvent& evt) {
@@ -93,6 +188,8 @@ void Display::OnMouseMotion(wxMouseEvent& evt) {
   int x, y;
   CalcUnscrolledPosition(evt.GetX(), evt.GetY(), &x, &y);
   SetIndices(x, y);
+
+  // propagate the event to the creator
 }
 
 void Display::OnMouseRightDown(wxMouseEvent& evt) {
@@ -149,5 +246,3 @@ void Display::SetZoomPanel(wxSlider* zoom_slider, wxStaticText* zoom_label) {
   zoom_slider_ = zoom_slider;
   zoom_label_ = zoom_label;
 }
-
-void Display::SetNavigator(Navigator* navigator) { navigator_ = navigator; }

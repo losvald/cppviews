@@ -2,6 +2,7 @@
 
 #include "smvd.hpp"
 #include "smvd_display.hpp"
+#include "sm/view_tree.hpp"
 #include "sm/view_type.hpp"
 
 #include <wx/filedlg.h>
@@ -33,6 +34,7 @@ MainFrame::MainFrame(wxWindow* parent) : MainFrameBase(parent) {
                          val_label_);
   display_->SetZoomPanel(zoom_slider_, zoom_lg_label_);
   display_->SetNavigator(navigator_);
+  display_->SetViewTree(view_tree_);
   type_choice_->Set(ViewTypeChoice::get().size(), ViewTypeChoice::get());
 }
 
@@ -102,10 +104,28 @@ const ViewParamsChoiceBase& ViewParamsChoiceBase::get(ViewType type) {
   throw "unreachable";
 }
 
+void MainFrame::OnViewTreeSelChanged(wxTreeEvent& evt) {
+  SelectView(evt.GetItem());
+}
+
 void MainFrame::OnViewChoice(wxCommandEvent& evt) {
-  auto choices = ViewParamsChoiceBase::get(static_cast<ViewType>(evt.GetInt()));
+  UpdateViewPanel(static_cast<ViewType>(evt.GetInt()));
+}
+
+void MainFrame::UpdateViewPanel(ViewType type) {
+  auto choices = ViewParamsChoiceBase::get(type);
   dir_choice_->Set(choices.size(), choices);
   dir_choice_->SetSelection(0);
+}
+
+void MainFrame::SelectView(const wxTreeItemId& id) {
+  auto v = static_cast<ViewTree::ItemDataBase*>(
+      view_tree_->GetItemData(id));
+  wxLogVerbose("OnViewTreeSelChanged(%d)", v->type());
+  type_choice_->SetSelection(v->type());
+  level_spin_->SetValue(view_tree_->GetLevel(id));
+  UpdateViewPanel(v->type());
+  display_->Refresh();
 }
 
 void MainFrame::DisplayMatrix() {
