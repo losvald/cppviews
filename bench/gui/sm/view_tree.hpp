@@ -6,6 +6,7 @@
 #include <wx/treectrl.h>
 
 #include <cstdlib>
+#include <iosfwd>
 
 class ViewTree : public wxTreeCtrl {
  public:
@@ -17,6 +18,8 @@ class ViewTree : public wxTreeCtrl {
           first_(first),
           last_(last) {}
     inline virtual ~ItemDataBase() = default;
+    inline virtual void WriteConfig(std::ostream* os) const { // TODO: = 0
+    }
     inline ViewType type() const { return type_; }
     inline int col_count() const { return abs(last_.x - first_.x) + 1; }
     inline int row_count() const { return abs(last_.y - first_.y) + 1; }

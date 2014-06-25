@@ -6,6 +6,7 @@
 
 class wxWindow;
 class wxCommandEvent;
+class ViewConfigDialog;
 
 class MainFrame : public MainFrameBase {
  public:
@@ -16,10 +17,13 @@ class MainFrame : public MainFrameBase {
   void OnQuit(wxCommandEvent&) override;
   void OnZoomSliderScroll(wxScrollEvent&) override;
   void OnViewChoice(wxCommandEvent&) override;
+  void OnViewConfigure(wxCommandEvent&) override;
   void OnViewTreeSelChanged(wxTreeEvent&) override;
  private:
   void DisplayMatrix();
   void UpdateViewPanel(ViewType type);
+
+  friend class ViewConfigDialog;
 };
 
 #endif  /* CPPVIEWS_BENCH_GUI_SMVD_FRAME_HPP_ */

@@ -5,6 +5,7 @@
 #include "sm/view_tree.hpp"
 #include "sm/view_type.hpp"
 
+#include <wx/datetime.h>
 #include <wx/filedlg.h>
 #include <wx/string.h>
 
@@ -36,6 +37,7 @@ MainFrame::MainFrame(wxWindow* parent) : MainFrameBase(parent) {
   display_->SetNavigator(navigator_);
   display_->SetViewTree(view_tree_);
   type_choice_->Set(ViewTypeChoice::get().size(), ViewTypeChoice::get());
+  status_bar_->SetStatusText("Welcome");
 }
 
 void MainFrame::OnOpen(wxCommandEvent&) {
@@ -131,4 +133,63 @@ void MainFrame::SelectView(const wxTreeItemId& id) {
 void MainFrame::DisplayMatrix() {
   navigator_->Refresh();
   display_->DisplayMatrix();
+}
+
+// view configuration
+
+class ViewConfigDialog : public ViewConfigDialogBase {
+ public:
+  ViewConfigDialog(MainFrame* frame, const wxTreeItemId& view_id,
+                   const ViewTree::ItemDataBase& view_info)
+      : ViewConfigDialogBase(frame),
+        frame_(frame),
+        view_id_(view_id),
+        view_info_(view_info) {
+    static_assert(wxHAS_TEXT_WINDOW_STREAM, "streams not impl by the compiler");
+    std::ostream os(editor_);
+    view_info.WriteConfig(&os);
+  }
+
+  bool config_changed() const { return config_changed_; }
+
+ protected:
+  void OnViewConfigOk(wxCommandEvent&) {
+    if (SaveConfig())
+      EndModal(GetAffirmativeId());
+  }
+
+  void OnViewConfigApply(wxCommandEvent&) {
+    SaveConfig();
+  }
+
+ private:
+  bool SaveConfig() {
+    if (rand() % 2) {
+      frame_->status_bar_->SetStatusText("Error: cannot save invalid config");
+      return false;
+    }
+
+    // TODO: implement
+    config_changed_ = true;
+    frame_->status_bar_->SetStatusText(wxString::Format(
+        "Saved view config @ %s", wxDateTime::Now().FormatISOTime()));
+    frame_->SelectView(view_id_);
+    return true;
+  }
+
+  MainFrame* frame_;
+  const wxTreeItemId& view_id_;
+  const ViewTree::ItemDataBase& view_info_;
+  bool config_changed_ = false;
+};
+
+void MainFrame::OnViewConfigure(wxCommandEvent&) {
+  const auto& view_id = view_tree_->GetSelection();
+  if (!view_id.IsOk())
+    return;
+
+  ViewConfigDialog diag(this, view_id, view_tree_->GetViewInfo(view_id));
+  diag.ShowModal();
+  // if (diag.config_changed())
+  //   SelectView(view_id);
 }
