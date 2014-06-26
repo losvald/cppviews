@@ -103,12 +103,12 @@ void Display::OnPaint(wxPaintEvent& evt) {
   // Draw views
 
   static const wxColor lvl_color[] = {
-    *wxBLACK,
-    wxColor(0xFFu, 0, 0xFFu),
+    wxColor(0xFFu, 0, 0xFFu),  // magenta
     *wxBLUE,
     *wxGREEN,
     *wxRED,
   };
+  static const int kViewColorCount = sizeof(lvl_color) / sizeof(wxColor);
   wxColor color;
 
   // transparency (%) is going to be incremented by kAlphaNormInc from 0.3
@@ -118,7 +118,7 @@ void Display::OnPaint(wxPaintEvent& evt) {
 
   // pen width is going to be decremented by kPenWidthInc down to 1
   static const int kPenWidthInc = 2;
-  int pen_width = (sizeof(lvl_color) - 1) / sizeof(wxColor) * kPenWidthInc + 1;
+  int pen_width = (kViewColorCount + 1) * kPenWidthInc + 1;
 
   // create a graphics context to allow for transparent colors
   // wxGraphicsContext *gc = wxGraphicsContext::Create(dc);
@@ -133,18 +133,21 @@ void Display::OnPaint(wxPaintEvent& evt) {
   q.push(view_tree_->GetRootItem());
   int lvl_cur = -1;
   int lvl_cnt[2] = {1, 0};
-  for (bool lvl_odd = false, lvl_done = true; !q.empty(); lvl_odd = !lvl_odd) {
+  for (bool lvl_done = true; !q.empty(); ) {
     // if a new level begins, initialize it first
     if (lvl_done) {
       ++lvl_cur;
       alpha_norm = std::min(alpha_norm + kAlphaNormInc, kAlphaNormMax);
-      color.SetRGBA(lvl_color[lvl_cur].GetRGB() |
-                    (wxUint32(0xFF * alpha_norm) << 24));
+      const wxColor& view_color = lvl_cur
+          ? lvl_color[(lvl_cur - 1) % kViewColorCount]
+          : *wxBLACK;
+      color.SetRGBA(view_color.GetRGB() | (wxUint32(0xFF * alpha_norm) << 24));
       pen.SetColour(color);
-      pen.SetWidth(pen_width -= kPenWidthInc);
+      pen.SetWidth(std::max(pen_width -= kPenWidthInc, 1));
       gc->SetPen(pen);
       wxLogVerbose("Begin drawing view level %d", lvl_cur);
     }
+    bool lvl_odd = lvl_cur & 1;
 
     // draw the view represented by the current node
     const auto& view_id = q.front();
