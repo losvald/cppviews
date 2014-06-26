@@ -25,6 +25,10 @@ class ViewTypeChoice : public ViewTypeSparseArray<wxString> {
   ViewTypeChoice() {
     (*this)[kViewTypeMono] = "mono";
     (*this)[kViewTypeChain] = "chain";
+    (*this)[kViewTypeFull] = "full";
+    (*this)[kViewTypeSparse] = "sparse";
+    (*this)[kViewTypeDiag] = "diag";
+    (*this)[kViewTypeImpl] = "impl";
   }
 };
 
@@ -61,15 +65,23 @@ void MainFrame::OnZoomSliderScroll(wxScrollEvent&) {
   display_->Zoom(zoom_slider_->GetValue());
 }
 
-template<unsigned char view_type>
-class ViewParamsChoice;
-
 class ViewParamsChoiceBase : public std::vector<wxString> {
  public:
   static const ViewParamsChoiceBase& get(ViewType);
   operator const wxString*() const { return data(); }
  protected:
   ViewParamsChoiceBase(size_t count) : std::vector<wxString>(count) {}
+};
+
+template<unsigned char view_type>
+struct ViewParamsChoice : public ViewParamsChoiceBase {
+  ViewParamsChoice() : ViewParamsChoiceBase(4) {
+    typedef typename ViewParams<kViewTypeMono>::Dir Dir;
+    (*this)[Dir::kRightDown] = L"\u2198";
+    (*this)[Dir::kLeftDown] = L"\u2199";
+    (*this)[Dir::kLeftUp] = L"\u2196";
+    (*this)[Dir::kRightUp] = L"\u2197";
+  }
 };
 
 template<>
@@ -83,17 +95,6 @@ struct ViewParamsChoice<kViewTypeChain> : public ViewParamsChoiceBase {
   }
 };
 
-template<>
-struct ViewParamsChoice<kViewTypeMono> : public ViewParamsChoiceBase {
-  ViewParamsChoice() : ViewParamsChoiceBase(4) {
-    typedef typename ViewParams<kViewTypeMono>::Dir Dir;
-    (*this)[Dir::kRightDown] = L"\u2198";
-    (*this)[Dir::kLeftDown] = L"\u2199";
-    (*this)[Dir::kLeftUp] = L"\u2196";
-    (*this)[Dir::kRightUp] = L"\u2197";
-  }
-};
-
 const ViewParamsChoiceBase& ViewParamsChoiceBase::get(ViewType type) {
   // using switch case is easier than using Singleton CRTP in each subclass
 #define SMVD_SWITCH_CASE(view_type) \
@@ -101,16 +102,40 @@ const ViewParamsChoiceBase& ViewParamsChoiceBase::get(ViewType type) {
   switch (type) {
     SMVD_SWITCH_CASE(kViewTypeChain);
     SMVD_SWITCH_CASE(kViewTypeMono);
+    SMVD_SWITCH_CASE(kViewTypeFull);
+    SMVD_SWITCH_CASE(kViewTypeSparse);
+    SMVD_SWITCH_CASE(kViewTypeDiag);
+    SMVD_SWITCH_CASE(kViewTypeImpl);
   }
 #undef SMVD_SWITCH_CASE
   throw "unreachable";
 }
 
-void MainFrame::OnViewTreeSelChanged(wxTreeEvent& evt) {
+void MainFrame::OnViewTreeSelChanged(wxTreeEvent& evt) {\
+  // re-select: old.IsOk() /\ new.IsOk() /\ old != new
+  // unselect: !old.IsOk() /\ new.IsOk()
+  // toggle: !old.IsOk() /\ new.IsOk()
+  wxLogVerbose("< %s", evt.GetOldItem().IsOk()
+               ? view_tree_->GetItemText(evt.GetOldItem())
+               : "??");
+  wxLogVerbose("> %s", evt.GetItem().IsOk()
+               ? view_tree_->GetItemText(evt.GetItem())
+               : "??");
+
+  auto old_view_id = evt.GetOldItem();
+  // we never unselect or toggle, but this is a safety measure
+  if (!old_view_id.IsOk())
+    return;
+
+  auto& old_view_info = view_tree_->GetViewInfo(old_view_id);
+  old_view_info.UnbindDisplayEvents(display_);
+
+  auto view_id = evt.GetItem();
+  view_tree_->GetViewInfo(view_id).BindDisplayEvents(display_);
   SelectView(evt.GetItem());
 }
 
-void MainFrame::OnViewChoice(wxCommandEvent& evt) {
+void MainFrame::OnViewTypeChoice(wxCommandEvent& evt) {
   UpdateViewPanel(static_cast<ViewType>(evt.GetInt()));
 }
 
@@ -123,11 +148,15 @@ void MainFrame::UpdateViewPanel(ViewType type) {
 void MainFrame::SelectView(const wxTreeItemId& id) {
   auto v = static_cast<ViewTree::ItemDataBase*>(
       view_tree_->GetItemData(id));
-  wxLogVerbose("OnViewTreeSelChanged(%d)", v->type());
+  wxLogVerbose("SelectView(type=%d)", v->type());
   type_choice_->SetSelection(v->type());
   level_spin_->SetValue(view_tree_->GetLevel(id));
   UpdateViewPanel(v->type());
   display_->Refresh();
+}
+
+void MainFrame::OnViewDirChoice(wxCommandEvent& evt) {
+  // TODO: implement
 }
 
 void MainFrame::DisplayMatrix() {

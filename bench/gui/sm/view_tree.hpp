@@ -8,18 +8,25 @@
 #include <cstdlib>
 #include <iosfwd>
 
+class Display;
+
 class ViewTree : public wxTreeCtrl {
  public:
   class ItemDataBase : public wxTreeItemData {
    public:
-    inline ItemDataBase(ViewType type, const wxPoint& first,
-                        const wxPoint& last)
+    inline ItemDataBase(ViewType type, const wxPoint& first = wxDefaultPosition,
+                        const wxPoint& last = wxDefaultPosition)
         : type_(type),
           first_(first),
           last_(last) {}
     inline virtual ~ItemDataBase() = default;
+    inline void Init(const wxPoint& first, const wxPoint& last) {
+      first_ = first, last_ = last;
+    }
     inline virtual void WriteConfig(std::ostream* os) const { // TODO: = 0
     }
+    inline virtual void BindDisplayEvents(Display* display) {}
+    inline virtual void UnbindDisplayEvents(Display* display) {}
     inline ViewType type() const { return type_; }
     inline int col_count() const { return abs(last_.x - first_.x) + 1; }
     inline int row_count() const { return abs(last_.y - first_.y) + 1; }
@@ -50,8 +57,11 @@ class ViewTree : public wxTreeCtrl {
   ViewTree(wxWindow* parent, wxWindowID id, const wxPoint& pos,
            const wxSize& size, long style);
   unsigned GetLevel(const wxTreeItemId& id) const;
-  inline const ItemDataBase& GetViewInfo(const wxTreeItemId& id) const {
+  inline ItemDataBase& GetViewInfo(const wxTreeItemId& id) {
     return *static_cast<ViewTree::ItemDataBase*>(GetItemData(id));
+  }
+  inline const ItemDataBase& GetViewInfo(const wxTreeItemId& id) const {
+    return const_cast<ViewTree*>(this)->GetViewInfo(id);
   }
 };
 

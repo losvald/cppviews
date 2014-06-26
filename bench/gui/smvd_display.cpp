@@ -1,6 +1,5 @@
 #include "smvd_display.hpp"
 #include "smvd_navigator.hpp"
-#include "sm/view_creator.hpp"
 #include "sm/view_tree.hpp"
 #include "sm/view_type.hpp"
 

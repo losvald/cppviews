@@ -56,9 +56,9 @@ void SMDisplayable::DrawMatrix(int row_from, int col_from,
 }
 
 void SMDisplayable::SetIndices(wxInt64 x, wxInt64 y) {
-  Scale(-zoom_factor_lg_, &x, &y);
-  col_label_->SetLabelText(wxString::Format("%li", x));
-  row_label_->SetLabelText(wxString::Format("%li", y));
+  InvertedScale(&x, &y);
+  col_label_->SetLabelText(wxString::Format("%lld", x));
+  row_label_->SetLabelText(wxString::Format("%lld", y));
 
   if (zoom_factor_lg_ >= 0) {
     const auto& sm = wxGetApp().matrix();

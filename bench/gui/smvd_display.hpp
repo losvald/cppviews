@@ -16,6 +16,11 @@ class Display : public wxScrolledCanvas, public SMDisplayable {
           const wxSize& size, long style);
   void DisplayMatrix();
   void Zoom(int zoom_factor_lg);
+  inline wxPoint DeviceToIndices(wxPoint pos) const {
+    CalcUnscrolledPosition(pos.x, pos.y, &pos.x, &pos.y);
+    InvertedScale(&pos.x, &pos.y);
+    return pos;
+  }
   void SetZoomPanel(wxSlider*, wxStaticText*);
   inline void SetNavigator(Navigator* navigator) { navigator_ = navigator; }
   inline void SetViewTree(ViewTree* view_tree) { view_tree_ = view_tree; }

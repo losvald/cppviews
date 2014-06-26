@@ -313,7 +313,7 @@
                         <event name="OnSplitterUnsplit"></event>
                         <event name="OnUpdateUI"></event>
                         <object class="splitteritem" expanded="1">
-                            <object class="wxPanel" expanded="0">
+                            <object class="wxPanel" expanded="1">
                                 <property name="BottomDockable">1</property>
                                 <property name="LeftDockable">1</property>
                                 <property name="RightDockable">1</property>
@@ -387,7 +387,7 @@
                                 <event name="OnSetFocus"></event>
                                 <event name="OnSize"></event>
                                 <event name="OnUpdateUI"></event>
-                                <object class="wxBoxSizer" expanded="0">
+                                <object class="wxBoxSizer" expanded="1">
                                     <property name="minimum_size"></property>
                                     <property name="name">info_pane_sizer_</property>
                                     <property name="orient">wxVERTICAL</property>
@@ -837,7 +837,7 @@
                                             </object>
                                         </object>
                                     </object>
-                                    <object class="sizeritem" expanded="0">
+                                    <object class="sizeritem" expanded="1">
                                         <property name="border">5</property>
                                         <property name="flag">wxEXPAND | wxALL</property>
                                         <property name="proportion">0</property>
@@ -1691,7 +1691,7 @@
                                             <event name="OnSetFocus"></event>
                                             <event name="OnSize"></event>
                                             <event name="OnUpdateUI"></event>
-                                            <object class="wxBoxSizer" expanded="1">
+                                            <object class="wxBoxSizer" expanded="0">
                                                 <property name="minimum_size"></property>
                                                 <property name="name">view_panel_sizer_</property>
                                                 <property name="orient">wxHORIZONTAL</property>
@@ -1930,7 +1930,7 @@
                                                         <property name="window_name"></property>
                                                         <property name="window_style"></property>
                                                         <event name="OnChar"></event>
-                                                        <event name="OnChoice">OnViewChoice</event>
+                                                        <event name="OnChoice">OnViewTypeChoice</event>
                                                         <event name="OnEnterWindow"></event>
                                                         <event name="OnEraseBackground"></event>
                                                         <event name="OnKeyDown"></event>
@@ -2018,7 +2018,7 @@
                                                         <property name="window_name"></property>
                                                         <property name="window_style"></property>
                                                         <event name="OnChar"></event>
-                                                        <event name="OnChoice"></event>
+                                                        <event name="OnChoice">OnViewDirChoice</event>
                                                         <event name="OnEnterWindow"></event>
                                                         <event name="OnEraseBackground"></event>
                                                         <event name="OnKeyDown"></event>

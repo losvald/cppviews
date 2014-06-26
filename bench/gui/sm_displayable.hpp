@@ -23,14 +23,20 @@ class SMDisplayable {
   }
 
   void SetIndices(wxInt64 row, wxInt64 col);
+
  protected:
   template<typename T>
-  inline T Scale(T x) {
+  inline T Scale(T x) const {
     return zoom_factor_lg_ >= 0 ? x << zoom_factor_lg_ : x >> -zoom_factor_lg_;
   }
 
   template<typename T>
-  inline void Scale(T* x, T* y) { return Scale(zoom_factor_lg_, x, y); }
+  inline void Scale(T* x, T* y) const { return Scale(zoom_factor_lg_, x, y); }
+
+  template<typename T>
+  inline void InvertedScale(T* x, T* y) const {
+    return Scale(-zoom_factor_lg_, x, y);
+  }
 
   static inline int BestZoomFactorLg(size_t sm_dim, size_t dim) {
     int zoom_factor_lg = 0;

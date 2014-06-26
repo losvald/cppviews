@@ -16,7 +16,8 @@ class MainFrame : public MainFrameBase {
   void OnOpen(wxCommandEvent&) override;
   void OnQuit(wxCommandEvent&) override;
   void OnZoomSliderScroll(wxScrollEvent&) override;
-  void OnViewChoice(wxCommandEvent&) override;
+  void OnViewTypeChoice(wxCommandEvent&) override;
+  void OnViewDirChoice(wxCommandEvent&) override;
   void OnViewConfigure(wxCommandEvent&) override;
   void OnViewTreeSelChanged(wxTreeEvent&) override;
  private:
