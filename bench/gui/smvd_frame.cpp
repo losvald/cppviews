@@ -7,6 +7,7 @@
 
 #include <wx/datetime.h>
 #include <wx/filedlg.h>
+#include <wx/msgdlg.h>
 #include <wx/string.h>
 
 #include <vector>
@@ -55,6 +56,8 @@ void MainFrame::OnOpen(wxCommandEvent&) {
   wxGetApp().LoadMatrix(diag.GetPath());
   DisplayMatrix();
   display_->SetFocus();
+
+  SelectView(view_tree_->GetRootItem());
 }
 
 void MainFrame::OnQuit(wxCommandEvent&) {
@@ -86,12 +89,10 @@ struct ViewParamsChoice : public ViewParamsChoiceBase {
 
 template<>
 struct ViewParamsChoice<kViewTypeChain> : public ViewParamsChoiceBase {
-  ViewParamsChoice() : ViewParamsChoiceBase(4) {
+  ViewParamsChoice() : ViewParamsChoiceBase(2) {
     typedef typename ViewParams<kViewTypeChain>::Dir Dir;
     (*this)[Dir::kRight] = L"\u2192";
     (*this)[Dir::kDown] = L"\u2193";
-    (*this)[Dir::kLeft] = L"\u2190";
-    (*this)[Dir::kUp] = L"\u2191";
   }
 };
 
@@ -123,20 +124,68 @@ void MainFrame::OnViewTreeSelChanged(wxTreeEvent& evt) {\
                : "??");
 
   auto old_view_id = evt.GetOldItem();
-  // we never unselect or toggle, but this is a safety measure
-  if (!old_view_id.IsOk())
-    return;
+  if (old_view_id.IsOk()) {
+    DeselectView(old_view_id);
+  } else { // the item must have been deleted, since we never unselect or toggle
+  }
 
-  auto& old_view_info = view_tree_->GetViewInfo(old_view_id);
-  old_view_info.UnbindDisplayEvents(display_);
-
-  auto view_id = evt.GetItem();
-  view_tree_->GetViewInfo(view_id).BindDisplayEvents(display_);
   SelectView(evt.GetItem());
 }
 
+void MainFrame::OnViewTreeDeleted(wxTreeEvent& evt) {
+  const auto& view_id = evt.GetItem();
+  auto text = view_tree_->GetItemText(view_id);
+  wxLogVerbose("Deleted: %s", text);
+  DeselectView(view_id);
+}
+
+void MainFrame::OnDelete(wxCommandEvent& evt) {
+  const auto& sel_view_id = view_tree_->GetSelection();
+  if (!sel_view_id.IsOk() || sel_view_id == view_tree_->GetRootItem())
+    return;
+
+  if (view_tree_->GetChildrenCount(sel_view_id, false)) {
+    wxMessageDialog diag(main_pane_,
+                         "The view contains one or more nested views."
+                         " Are you sure you want to delete it?",
+                         "Confirm recursive deletion",
+                         wxICON_QUESTION | wxYES_NO | wxNO_DEFAULT);
+    if (diag.ShowModal() != wxID_YES)
+      return;
+  }
+
+  view_tree_->Delete(sel_view_id);
+}
+
+void MainFrame::OnDeleteChildren(wxCommandEvent& evt) {
+  const auto& sel_view_id = view_tree_->GetSelection();
+  wxLogVerbose("DEL CHILDREN: %s\n", view_tree_->GetItemText(sel_view_id));
+  if (!sel_view_id.IsOk())
+    return;
+
+  wxLogVerbose("DELETED CHILDREN");
+  view_tree_->DeleteChildren(sel_view_id);
+  display_->Refresh();
+}
+
 void MainFrame::OnViewTypeChoice(wxCommandEvent& evt) {
-  UpdateViewPanel(static_cast<ViewType>(evt.GetInt()));
+  wxLogVerbose("View type choice: %d", evt.GetInt());
+  const auto& sel_view_id = view_tree_->GetSelection();
+  auto& sel_view_info = view_tree_->GetViewInfo(sel_view_id);
+  if (view_tree_->GetChildrenCount(sel_view_id)) {
+    // revert the view type after displaying a warning about nested views
+    wxMessageDialog diag(main_pane_,
+                         "Please remove the contained nesting views first.",
+                         "Failed changing view type",
+                         wxICON_EXCLAMATION | wxOK);
+    diag.ShowModal();
+    type_choice_->SetSelection(sel_view_info.type());
+    return;
+  }
+
+  DeselectView(sel_view_id);
+  view_tree_->ChangeViewType(sel_view_id, static_cast<ViewType>(evt.GetInt()));
+  SelectView(sel_view_id);
 }
 
 void MainFrame::UpdateViewPanel(ViewType type) {
@@ -145,18 +194,37 @@ void MainFrame::UpdateViewPanel(ViewType type) {
   dir_choice_->SetSelection(0);
 }
 
+void MainFrame::DeselectView(const wxTreeItemId& id) {
+  view_tree_->GetViewInfo(id).UnbindDisplayEvents(display_);
+}
+
 void MainFrame::SelectView(const wxTreeItemId& id) {
-  auto v = static_cast<ViewTree::ItemDataBase*>(
-      view_tree_->GetItemData(id));
-  wxLogVerbose("SelectView(type=%d)", v->type());
-  type_choice_->SetSelection(v->type());
+  auto& info = view_tree_->GetViewInfo(id);
+  wxLogVerbose("SelectView(type=%d; text=%s)", info.type(),
+               view_tree_->GetItemText(id));
+  type_choice_->SetSelection(info.type());
   level_spin_->SetValue(view_tree_->GetLevel(id));
-  UpdateViewPanel(v->type());
+  UpdateViewPanel(info.type());
   display_->Refresh();
+
+  info.BindDisplayEvents(display_, view_tree_);
 }
 
 void MainFrame::OnViewDirChoice(wxCommandEvent& evt) {
-  // TODO: implement
+  const auto& sel_view_id = view_tree_->GetSelection();
+  auto& sel_view_info = view_tree_->GetViewInfo(sel_view_id);
+  if (view_tree_->GetChildrenCount(sel_view_id)) {
+    // revert the direction after displaying a warning about nested views
+    wxMessageDialog diag(main_pane_,
+                         "Please remove the contained nesting views first.",
+                         "Failed changing view direction",
+                         wxICON_EXCLAMATION | wxOK);
+    diag.ShowModal();
+    dir_choice_->SetSelection(sel_view_info.direction());
+    return;
+  }
+
+  sel_view_info.set_direction(evt.GetInt());
 }
 
 void MainFrame::DisplayMatrix() {
@@ -168,11 +236,9 @@ void MainFrame::DisplayMatrix() {
 
 class ViewConfigDialog : public ViewConfigDialogBase {
  public:
-  ViewConfigDialog(MainFrame* frame, const wxTreeItemId& view_id,
-                   const ViewTree::ItemDataBase& view_info)
-      : ViewConfigDialogBase(frame),
+  ViewConfigDialog(MainFrame* frame, const ViewTree::ItemDataBase& view_info)
+      : ViewConfigDialogBase(frame->main_pane_),
         frame_(frame),
-        view_id_(view_id),
         view_info_(view_info) {
     static_assert(wxHAS_TEXT_WINDOW_STREAM, "streams not impl by the compiler");
     std::ostream os(editor_);
@@ -202,12 +268,11 @@ class ViewConfigDialog : public ViewConfigDialogBase {
     config_changed_ = true;
     frame_->status_bar_->SetStatusText(wxString::Format(
         "Saved view config @ %s", wxDateTime::Now().FormatISOTime()));
-    frame_->SelectView(view_id_);
+    frame_->SelectView(view_info_.GetId());
     return true;
   }
 
   MainFrame* frame_;
-  const wxTreeItemId& view_id_;
   const ViewTree::ItemDataBase& view_info_;
   bool config_changed_ = false;
 };
@@ -217,8 +282,6 @@ void MainFrame::OnViewConfigure(wxCommandEvent&) {
   if (!view_id.IsOk())
     return;
 
-  ViewConfigDialog diag(this, view_id, view_tree_->GetViewInfo(view_id));
+  ViewConfigDialog diag(this, view_tree_->GetViewInfo(view_id));
   diag.ShowModal();
-  // if (diag.config_changed())
-  //   SelectView(view_id);
 }

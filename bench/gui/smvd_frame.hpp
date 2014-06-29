@@ -15,14 +15,18 @@ class MainFrame : public MainFrameBase {
  protected:
   void OnOpen(wxCommandEvent&) override;
   void OnQuit(wxCommandEvent&) override;
+  void OnDelete(wxCommandEvent&) override;
+  void OnDeleteChildren(wxCommandEvent&) override;
   void OnZoomSliderScroll(wxScrollEvent&) override;
   void OnViewTypeChoice(wxCommandEvent&) override;
   void OnViewDirChoice(wxCommandEvent&) override;
   void OnViewConfigure(wxCommandEvent&) override;
   void OnViewTreeSelChanged(wxTreeEvent&) override;
+  void OnViewTreeDeleted(wxTreeEvent&) override;
  private:
   void DisplayMatrix();
   void UpdateViewPanel(ViewType type);
+  void DeselectView(const wxTreeItemId& id);
 
   friend class ViewConfigDialog;
 };
