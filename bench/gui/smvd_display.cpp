@@ -41,7 +41,13 @@ void Display::DisplayMatrix() {
   Zoom(0);
 }
 
-void Display::Zoom(int zoom_factor_lg) {
+void Display::Zoom(int zoom_factor_lg, const wxPoint& mouse_pos) {
+  wxPoint mouse_indices;
+  if (mouse_pos != wxDefaultPosition) {
+    mouse_indices = CalcUnscrolledPosition(mouse_pos);
+    InvertedScale(&mouse_indices.x, &mouse_indices.y);
+  }
+
   zoom_factor_lg_ = zoom_factor_lg;
   const auto& sm = wxGetApp().matrix();
   int x = sm.col_count(), y = sm.row_count();
@@ -50,6 +56,14 @@ void Display::Zoom(int zoom_factor_lg) {
   SetVirtualSize(x, y);
   int scroll_rate = zoom_factor_lg > 0 ? 1 << zoom_factor_lg : 1;
   SetScrollRate(scroll_rate, scroll_rate);
+  if (mouse_pos != wxDefaultPosition) {
+    wxPoint delta = mouse_pos;
+    InvertedScale(&delta.x, &delta.y);
+    wxPoint cur_from = mouse_indices - delta;
+    if (zoom_factor_lg_ < 0)
+      Scale(&cur_from.x, &cur_from.y);
+    Scroll(cur_from);
+  }
   Refresh();
 
   zoom_slider_->SetValue(zoom_factor_lg);
@@ -219,7 +233,7 @@ void Display::OnMouseWheel(wxMouseEvent& evt) {
   } else if (--zoom_factor_lg < zoom_factor_lg_min_)
     return;
 
-  Zoom(zoom_factor_lg);
+  Zoom(zoom_factor_lg, evt.GetPosition());
 
   wxLogVerbose("Changed display_.zoom_factor_lg_: %d\n", zoom_factor_lg_);
 }
