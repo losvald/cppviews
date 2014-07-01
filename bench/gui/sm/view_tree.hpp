@@ -10,6 +10,12 @@
 
 class Display;
 
+namespace {
+
+class JsonPrettyWriter;
+
+}  // namespace
+
 class ViewTree : public wxTreeCtrl {
  public:
   class ItemDataBase : public wxTreeItemData {
@@ -25,7 +31,7 @@ class ViewTree : public wxTreeCtrl {
     inline void Init(const wxPoint& first, const wxPoint& last) {
       first_ = first, last_ = last;
     }
-    virtual void WriteConfig(std::ostream* os) const;
+    void WriteConfig(std::ostream* os) const;
     inline virtual void BindDisplayEvents(Display* display, ViewTree* tree) {}
     inline virtual void UnbindDisplayEvents(Display* display) {}
     bool Contains(const wxPoint& indices) const;
@@ -68,12 +74,16 @@ class ViewTree : public wxTreeCtrl {
     inline wxSize dims() const { return wxSize(col_count(), row_count()); }
 
    protected:
+    virtual void WriteConfig(JsonPrettyWriter& writer) const;
+
     Direction dir_;
 
    private:
     ViewType type_;
     wxPoint first_;
     wxPoint last_;
+
+    friend class ViewTree;
   };
 
   ViewTree(wxWindow* parent, wxWindowID id, const wxPoint& pos,
@@ -86,6 +96,7 @@ class ViewTree : public wxTreeCtrl {
     return const_cast<ViewTree*>(this)->GetViewInfo(id);
   }
   void ChangeViewType(const wxTreeItemId& id, ViewType type);
+  void WriteConfig(std::ostream* os) const;
 };
 
 #endif  /* CPPVIEWS_BENCH_GUI_SM_VIEW_TREE_HPP_ */

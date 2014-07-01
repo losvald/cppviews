@@ -1,12 +1,31 @@
 #include "view_tree.hpp"
 
 #include "../smvd_display.hpp"
+#include "../../util/rapidjson/prettywriter.h"
 
 #include "wx/log.h"
 
 #include <ostream>
+#include <stack>
 
 namespace {
+
+class JsonOutputStream {
+ public:
+  JsonOutputStream(std::ostream& os) : os_(os) {}
+  void Put (char ch) { os_.put(ch); }
+  void Flush() {}
+ private:
+  std::ostream& os_;
+};
+
+class JsonPrettyWriter : public rapidjson::PrettyWriter<JsonOutputStream> {
+ public:
+  JsonPrettyWriter(JsonOutputStream& jos)
+      : rapidjson::PrettyWriter<JsonOutputStream>(jos) {
+    SetIndent(' ', 2);
+  }
+};
 
 template<unsigned char view_type>
 class ViewInfo : public ViewTree::ItemDataBase {
@@ -261,6 +280,32 @@ class ViewInfo<kViewTypeMono> : public ViewTree::ItemDataBase {
   }
 };
 
+template<>
+class ViewInfo<kViewTypeDiag> : public ViewTree::ItemDataBase {
+ public:
+  ViewInfo() : ViewTree::ItemDataBase(kViewTypeImpl) {}
+  void WriteConfig(JsonPrettyWriter& w) const {
+    ViewTree::ItemDataBase::WriteConfig(w);
+    const wxString nl = "\n";
+    // XXX: for testing/demo only
+    w.String("block_rows").Int(7);
+    w.String("block_cols").Int(3);
+  }
+};
+
+template<>
+class ViewInfo<kViewTypeImpl> : public ViewTree::ItemDataBase {
+ public:
+  ViewInfo() : ViewTree::ItemDataBase(kViewTypeImpl) {}
+  void WriteConfig(JsonPrettyWriter& w) const {
+    ViewTree::ItemDataBase::WriteConfig(w);
+    // XXX: for testing/demo only
+    const wxString nl = "\n";
+    wxString fun_str = nl + "return 0;" + nl;
+    w.String("function").String(fun_str.mb_str(), fun_str.size());
+  }
+};
+
 // TODO: specialize for more view types
 
 // XXX: for testing/demo only
@@ -285,6 +330,7 @@ ViewTree::ViewTree(wxWindow* parent, wxWindowID id, const wxPoint& pos,
       wxPoint(0, 0), wxPoint(100, 200)));
   auto id_1 = AppendItem(id_root, "_1", -1, -1, CreateViewInfo<kViewTypeChain>(
       wxPoint(0, 0), wxPoint(80, 100)));
+  GetViewInfo(id_1).set_direction(1);
   AppendItem(id_root, "_2", -1, -1, CreateViewInfo<kViewTypeChain>(
       wxPoint(81, 101), wxPoint(100, 200)));
   AppendItem(id_1, "_1_1", -1, -1, CreateViewInfo<kViewTypeMono>(
@@ -325,13 +371,61 @@ unsigned ViewTree::GetLevel(const wxTreeItemId& id) const {
   return lvl;
 }
 
+void ViewTree::WriteConfig(std::ostream* os) const {
+  JsonOutputStream jos(*os);
+  JsonPrettyWriter pw(jos);
+
+  std::stack<wxTreeItemId> stack;
+  std::stack<wxTreeItemId> children;
+  wxTreeItemId unset; unset.Unset();  // sentinel for end of a nesting level
+  // stack.push(unset);
+  const auto& root_id = GetRootItem();
+  stack.push(root_id);
+  do {
+    const auto id = stack.top();
+    stack.pop();
+    if (!id.IsOk()) {
+      pw.EndObject();
+      continue;
+    }
+
+    if (id != root_id) {  // top-level view doesn't have a name in JSON
+      const wxString& name = GetItemText(id);
+      pw.String(name.mb_str(), name.length());
+    }
+    pw.StartObject();
+    GetViewInfo(id).WriteConfig(pw);
+
+    // push the unset id as a sentinel value for the end of a nesting level
+    stack.push(unset);
+
+    // push the children in reverse order
+    wxTreeItemIdValue cookie;
+    for (wxTreeItemId child = GetFirstChild(id, cookie);
+         child.IsOk(); child = GetNextChild(id, cookie)) {
+      children.push(std::move(child));
+    }
+    for (; !children.empty(); children.pop())
+      stack.push(std::move(children.top()));
+  } while (!stack.empty());
+}
+
 void ViewTree::ItemDataBase::WriteConfig(std::ostream* os) const {
-  const auto& tl = top_left();
-  const auto& br = bottom_right();
-  *os << "row_min: " << tl.y << "\n"
-      << "row_max: " << br.y << "\n"
-      << "col_min: " << tl.x << "\n"
-      << "col_max: " << br.x << "\n";
+  JsonOutputStream jos(*os);
+  JsonPrettyWriter pw(jos);
+  pw.StartObject();
+  WriteConfig(pw);
+  pw.EndObject();
+}
+
+void ViewTree::ItemDataBase::WriteConfig(JsonPrettyWriter& writer) const {
+  writer
+      .String("type").Int(type())
+      .String("direction").Int(direction())
+      .String("first_row").Int(first().y)
+      .String("first_col").Int(first().x)
+      .String("last_row").Int(last().y)
+      .String("last_col").Int(last().x);
 }
 
 bool ViewTree::ItemDataBase::Contains(const wxPoint& indices) const {

@@ -32,8 +32,8 @@ void SmvdApp::LoadMatrix(const wxString& path) {
                int(sm_.row_count()), int(sm_.col_count()));
 
   // replace the extension with .smv and use as the default save path
-  sm_path_ = path.substr(0, path.rfind('.')) + SMVD_FILE_EXT;
-  wxLogVerbose("Default save path: %s\n", sm_path_.c_str());
+  config_path_ = path.substr(0, path.rfind('.')) + SMVD_FILE_EXT;
+  wxLogVerbose("Default save path: %s\n", config_path_);
 }
 
 IMPLEMENT_APP(SmvdApp)

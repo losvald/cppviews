@@ -14,6 +14,7 @@ class MainFrame : public MainFrameBase {
   void SelectView(const wxTreeItemId& id);
  protected:
   void OnOpen(wxCommandEvent&) override;
+  void OnSave(wxCommandEvent&) override;
   void OnQuit(wxCommandEvent&) override;
   void OnDelete(wxCommandEvent&) override;
   void OnDeleteChildren(wxCommandEvent&) override;

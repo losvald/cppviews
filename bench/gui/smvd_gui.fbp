@@ -198,6 +198,21 @@
                         <event name="OnMenuSelection">OnOpen</event>
                         <event name="OnUpdateUI"></event>
                     </object>
+                    <object class="wxMenuItem" expanded="1">
+                        <property name="bitmap"></property>
+                        <property name="checked">0</property>
+                        <property name="enabled">1</property>
+                        <property name="help"></property>
+                        <property name="id">wxID_SAVE</property>
+                        <property name="kind">wxITEM_NORMAL</property>
+                        <property name="label"></property>
+                        <property name="name">item_save_</property>
+                        <property name="permission">none</property>
+                        <property name="shortcut"></property>
+                        <property name="unchecked_bitmap"></property>
+                        <event name="OnMenuSelection">OnSave</event>
+                        <event name="OnUpdateUI"></event>
+                    </object>
                     <object class="separator" expanded="0">
                         <property name="name">item_quit_sep</property>
                         <property name="permission">none</property>

@@ -10,6 +10,7 @@
 #include <wx/msgdlg.h>
 #include <wx/string.h>
 
+#include <fstream>
 #include <vector>
 
 class ViewTypeChoice : public ViewTypeSparseArray<wxString> {
@@ -58,6 +59,19 @@ void MainFrame::OnOpen(wxCommandEvent&) {
   display_->SetFocus();
 
   SelectView(view_tree_->GetRootItem());
+}
+
+void MainFrame::OnSave(wxCommandEvent&) {
+  const auto& app = wxGetApp();
+  if (!app.IsMatrixLoaded())
+    return;
+
+  std::ofstream ofs(app.config_path().mb_str());
+  view_tree_->WriteConfig(&ofs);
+  status_bar_->SetStatusText(wxString::Format(
+      "[%s] Saved view config to %s",
+      wxDateTime::Now().FormatISOTime(),
+      app.config_path()));
 }
 
 void MainFrame::OnQuit(wxCommandEvent&) {
@@ -267,7 +281,7 @@ class ViewConfigDialog : public ViewConfigDialogBase {
     // TODO: implement
     config_changed_ = true;
     frame_->status_bar_->SetStatusText(wxString::Format(
-        "Saved view config @ %s", wxDateTime::Now().FormatISOTime()));
+        "Applied view config @ %s", wxDateTime::Now().FormatISOTime()));
     frame_->SelectView(view_info_.GetId());
     return true;
   }
