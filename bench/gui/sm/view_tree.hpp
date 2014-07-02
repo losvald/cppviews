@@ -12,7 +12,7 @@ class Display;
 
 namespace {
 
-class JsonPrettyWriter;
+class ViewTreeBuilder;
 
 }  // namespace
 
@@ -21,19 +21,13 @@ class ViewTree : public wxTreeCtrl {
   class ItemDataBase : public wxTreeItemData {
    public:
     typedef unsigned char Direction;
-    inline ItemDataBase(ViewType type, const wxPoint& first = wxDefaultPosition,
-                        const wxPoint& last = wxDefaultPosition)
-        : dir_(0),  // TODO: add ctor arg
-          type_(type),
-          first_(first),
-          last_(last) {}
     inline virtual ~ItemDataBase() = default;
     inline void Init(const wxPoint& first, const wxPoint& last) {
       first_ = first, last_ = last;
     }
-    void WriteConfig(std::ostream* os) const;
     inline virtual void BindDisplayEvents(Display* display, ViewTree* tree) {}
     inline virtual void UnbindDisplayEvents(Display* display) {}
+    virtual void WriteConfig(std::ostream* os) const = 0;
     bool Contains(const wxPoint& indices) const;
     inline ViewType type() const { return type_; }
     inline void set_direction(Direction dir) { dir_ = dir; }
@@ -74,7 +68,12 @@ class ViewTree : public wxTreeCtrl {
     inline wxSize dims() const { return wxSize(col_count(), row_count()); }
 
    protected:
-    virtual void WriteConfig(JsonPrettyWriter& writer) const;
+    inline ItemDataBase(ViewType type, const wxPoint& first = wxDefaultPosition,
+                        const wxPoint& last = wxDefaultPosition)
+        : dir_(0),  // TODO: add ctor arg
+          type_(type),
+          first_(first),
+          last_(last) {}
 
     Direction dir_;
 
@@ -97,6 +96,9 @@ class ViewTree : public wxTreeCtrl {
   }
   void ChangeViewType(const wxTreeItemId& id, ViewType type);
   void WriteConfig(std::ostream* os) const;
+  void ReadConfig(const char* path);
+
+  friend class ViewTreeBuilder;
 };
 
 #endif  /* CPPVIEWS_BENCH_GUI_SM_VIEW_TREE_HPP_ */

@@ -1,12 +1,16 @@
 #include "view_tree.hpp"
 
 #include "../smvd_display.hpp"
+#include "../../util/rapidjson/document.h"
+#include "../../util/rapidjson/filereadstream.h"
 #include "../../util/rapidjson/prettywriter.h"
 
 #include "wx/log.h"
 
 #include <ostream>
 #include <stack>
+
+#include <cstdio>
 
 namespace {
 
@@ -27,17 +31,55 @@ class JsonPrettyWriter : public rapidjson::PrettyWriter<JsonOutputStream> {
   }
 };
 
-template<unsigned char view_type>
-class ViewInfo : public ViewTree::ItemDataBase {
+typedef rapidjson::GenericValue<rapidjson::Document::EncodingType,
+                                rapidjson::Document::AllocatorType> JsonValue;
+
+class ViewInfoBase : public ViewTree::ItemDataBase {
  public:
-  ViewInfo() : ViewTree::ItemDataBase(static_cast<ViewType>(view_type)) {}
+  static ViewInfoBase* Create(ViewType type,
+                              ViewTree::ItemDataBase::Direction direction);
+
+  void WriteConfig(std::ostream* os) const override {
+    JsonOutputStream jos(*os);
+    JsonPrettyWriter pw(jos);
+    pw.StartObject();
+    WriteConfig(pw);
+    pw.EndObject();
+  }
+
+  virtual void WriteConfig(JsonPrettyWriter& writer) const {
+#define SMVD_THIS_COORD(which, suffix, c)       \
+    String(#which suffix).Int(which().c)
+#define SMVD_THIS_POINT(which)                                          \
+    SMVD_THIS_COORD(which, "_row", y).SMVD_THIS_COORD(which, "_col", x)
+
+    writer
+        .SMVD_THIS_POINT(first)
+        .SMVD_THIS_POINT(last);
+#undef SMVD_THIS_POINT
+#undef SMVD_THIS_COORD
+  }
+
+  virtual void ReadConfig(const JsonValue& val) {
+#define SMVD_THIS_COORD(name) val[name].GetInt()
+#define SMVD_THIS_POINT(which)                      \
+    wxPoint(SMVD_THIS_COORD(#which "_col"),      \
+            SMVD_THIS_COORD(#which "_row"))
+
+    Init(SMVD_THIS_POINT(first), SMVD_THIS_POINT(last));
+#undef SMVD_THIS_POINT
+#undef SMVD_THIS_COORD
+  }
+
+ protected:
+  ViewInfoBase(ViewType type) : ViewTree::ItemDataBase(type) {}
 };
 
 template<unsigned char view_type>
-ViewTree::ItemDataBase* CreateViewInfo(const wxPoint& first = wxDefaultPosition,
-                                       const wxPoint& last = wxDefaultPosition,
-                                       ViewTree::ItemDataBase::Direction
-                                       direction = 0);
+class ViewInfo : public ViewInfoBase {
+ public:
+  ViewInfo() : ViewInfoBase(static_cast<ViewType>(view_type)) {}
+};
 
 struct State : public wxObject {
   State(Display* display, ViewTree* tree) : display(*display), tree(*tree) {}
@@ -58,19 +100,19 @@ struct State : public wxObject {
   display->Unbind(event_type, &ViewInfo::method, this)
 
 template<>
-class ViewInfo<kViewTypeChain> : public ViewTree::ItemDataBase {
+class ViewInfo<kViewTypeChain> : public ViewInfoBase {
  public:
   static constexpr ViewType kType = kViewTypeChain;
   typedef ViewParams<kType> ParamsType;
 
-  ViewInfo() : ViewTree::ItemDataBase(kType) {}
-  void BindDisplayEvents(Display* display, ViewTree* tree) {
+  ViewInfo() : ViewInfoBase(kType) {}
+  void BindDisplayEvents(Display* display, ViewTree* tree) override {
     wxLogVerbose("Binding chain display events");
     SMVD_VIEW_INFO_BIND(wxEVT_LEFT_DOWN, OnDisplayLeftDown, display, tree);
     SMVD_VIEW_INFO_BIND(wxEVT_LEFT_DCLICK, OnDisplayLeftDClick, display, tree);
   }
 
-  void UnbindDisplayEvents(Display* display) {
+  void UnbindDisplayEvents(Display* display) override {
     wxLogVerbose("Unbinding chain display events");
     SMVD_VIEW_INFO_UNBIND(wxEVT_LEFT_DOWN, OnDisplayLeftDown, display);
     SMVD_VIEW_INFO_UNBIND(wxEVT_LEFT_DCLICK, OnDisplayLeftDClick, display);
@@ -152,8 +194,10 @@ class ViewInfo<kViewTypeChain> : public ViewTree::ItemDataBase {
     Translate(-1, &last);
     static int gen_id = 0;
     wxString text = wxString::Format("_new%02d", gen_id++);
-    tree.AppendItem(GetId(), text, -1, -1, CreateViewInfo<kViewTypeChain>(
-        first, last, !dir_));
+    auto info = new ViewInfo<kViewTypeChain>;
+    info->Init(first, last);
+    info->set_direction(!dir_);
+    tree.AppendItem(GetId(), text, -1, -1, info);
     s.display.Refresh();
   }
 
@@ -252,9 +296,9 @@ class ViewInfo<kViewTypeChain> : public ViewTree::ItemDataBase {
 };
 
 template<>
-class ViewInfo<kViewTypeMono> : public ViewTree::ItemDataBase {
+class ViewInfo<kViewTypeMono> : public ViewInfoBase {
  public:
-  ViewInfo() : ViewTree::ItemDataBase(kViewTypeMono) {}
+  ViewInfo() : ViewInfoBase(kViewTypeMono) {}
   void BindDisplayEvents(Display* display, ViewTree* tree) {
     wxLogVerbose("Binding mono display events");
     SMVD_VIEW_INFO_BIND(wxEVT_LEFT_DOWN, OnDisplayLeftDown, display, tree);
@@ -281,72 +325,49 @@ class ViewInfo<kViewTypeMono> : public ViewTree::ItemDataBase {
 };
 
 template<>
-class ViewInfo<kViewTypeDiag> : public ViewTree::ItemDataBase {
+class ViewInfo<kViewTypeDiag> : public ViewInfoBase {
  public:
-  ViewInfo() : ViewTree::ItemDataBase(kViewTypeImpl) {}
-  void WriteConfig(JsonPrettyWriter& w) const {
-    ViewTree::ItemDataBase::WriteConfig(w);
-    const wxString nl = "\n";
-    // XXX: for testing/demo only
-    w.String("block_rows").Int(7);
-    w.String("block_cols").Int(3);
+  ViewInfo() : ViewInfoBase(kViewTypeDiag) {}
+  void WriteConfig(JsonPrettyWriter& w) const override {
+    ViewInfoBase::WriteConfig(w);
+    w.String("block_rows").Int(block_dims_.y);
+    w.String("block_cols").Int(block_dims_.x);
   }
+  void ReadConfig(const JsonValue& val) override {
+    ViewInfoBase::ReadConfig(val);
+    block_dims_.y = val["block_rows"].GetInt();
+    block_dims_.x = val["block_cols"].GetInt();
+  }
+ private:
+  wxSize block_dims_ = wxSize(1, 1);
 };
 
 template<>
-class ViewInfo<kViewTypeImpl> : public ViewTree::ItemDataBase {
+class ViewInfo<kViewTypeImpl> : public ViewInfoBase {
  public:
-  ViewInfo() : ViewTree::ItemDataBase(kViewTypeImpl) {}
-  void WriteConfig(JsonPrettyWriter& w) const {
-    ViewTree::ItemDataBase::WriteConfig(w);
-    // XXX: for testing/demo only
-    const wxString nl = "\n";
-    wxString fun_str = nl + "return 0;" + nl;
-    w.String("function").String(fun_str.mb_str(), fun_str.size());
+  ViewInfo() : ViewInfoBase(kViewTypeImpl) {}
+  void WriteConfig(JsonPrettyWriter& w) const override {
+    ViewInfoBase::WriteConfig(w);
+    w.String("function").String(fun_str_.mb_str(), fun_str_.size());
   }
+  void ReadConfig(const JsonValue& val) override {
+    ViewInfoBase::ReadConfig(val);
+    fun_str_ = val["function"].GetString();
+  }
+
+ private:
+  wxString fun_str_ = "(int row, int col) {\nreturn 0;\n}";
 };
 
 // TODO: specialize for more view types
 
-// XXX: for testing/demo only
-template<unsigned char view_type>
-ViewTree::ItemDataBase* CreateViewInfo(const wxPoint& first,
-                                       const wxPoint& last,
-                                       ViewTree::ItemDataBase::Direction
-                                       direction) {
-  auto vi = new ViewInfo<view_type>;
-  vi->Init(first, last);
-  vi->set_direction(direction);
-  return vi;
-}
-
-}  // namespace
-
-ViewTree::ViewTree(wxWindow* parent, wxWindowID id, const wxPoint& pos,
-                   const wxSize& size, long style)
-    : wxTreeCtrl(parent, id, pos, size, style) {
-  // XXX: for testing/demo only
-  auto id_root = AddRoot("root", -1, -1, CreateViewInfo<kViewTypeMono>(
-      wxPoint(0, 0), wxPoint(100, 200)));
-  auto id_1 = AppendItem(id_root, "_1", -1, -1, CreateViewInfo<kViewTypeChain>(
-      wxPoint(0, 0), wxPoint(80, 100)));
-  GetViewInfo(id_1).set_direction(1);
-  AppendItem(id_root, "_2", -1, -1, CreateViewInfo<kViewTypeChain>(
-      wxPoint(81, 101), wxPoint(100, 200)));
-  AppendItem(id_1, "_1_1", -1, -1, CreateViewInfo<kViewTypeMono>(
-      wxPoint(5, 10), wxPoint(80, 50)));
-
-  ExpandAll();
-}
-
-void ViewTree::ChangeViewType(const wxTreeItemId& id, ViewType type) {
-  ItemDataBase* info;
-  const auto& old_info = GetViewInfo(id);
-#define SMVD_SWITCH_CASE(view_type)                                     \
-  case view_type: {                                                     \
-    info = new ViewInfo<view_type>;                                     \
-    info->Init(old_info.first(), old_info.last());                      \
-    break;                                                              \
+ViewInfoBase*
+ViewInfoBase::Create(ViewType type, ViewTree::ItemDataBase::Direction dir) {
+  ViewInfoBase* info;
+#define SMVD_SWITCH_CASE(view_type)             \
+  case view_type: {                             \
+    info = new ViewInfo<view_type>;             \
+    break;                                      \
   }
   switch (type) {
     SMVD_SWITCH_CASE(kViewTypeChain);
@@ -357,11 +378,64 @@ void ViewTree::ChangeViewType(const wxTreeItemId& id, ViewType type) {
     SMVD_SWITCH_CASE(kViewTypeImpl);
     default:
       wxASSERT("Missing switch case");
-      return;
+      return nullptr;
   }
 #undef SMVD_SWITCH_CASE
+  info->set_direction(dir);
+  return info;
+}
 
+// use a helper class to avoid dependency on rapidjson in the header
+class ViewTreeBuilder {
+ public:
+  ViewTreeBuilder(ViewTree& tree, JsonValue& json) : tree_(tree) {
+    const auto& root_id = tree.GetRootItem();
+    tree_.DeleteChildren(root_id);
+    tree_.ChangeViewType(root_id, static_cast<ViewType>(json["type"].GetInt()));
+    Build(json, static_cast<ViewInfoBase*>(tree_.GetItemData(root_id)));
+  }
+
+ private:
+  void Build(const JsonValue& val, ViewInfoBase* info) {
+    info->ReadConfig(val);
+    for (auto m = val.MemberBegin(), m_end = val.MemberEnd(); m != m_end; ++m) {
+      const char* name = m->name.GetString();
+      if (name[0] == '_') {
+        ViewType child_type = GetViewType(m->value);
+        auto child_dir = static_cast<ViewTree::ItemDataBase::Direction>(
+            m->value["direction"].GetInt());
+        auto child_info = ViewInfoBase::Create(child_type, child_dir);
+        tree_.AppendItem(info->GetId(), name, -1, -1, child_info);
+        Build(m->value, child_info);
+      }
+    }
+  }
+
+  static ViewType GetViewType(const JsonValue& val) {
+    return static_cast<ViewType>(val["type"].GetInt());
+  }
+
+  ViewTree& tree_;
+};
+
+}  // namespace
+
+ViewTree::ViewTree(wxWindow* parent, wxWindowID id, const wxPoint& pos,
+                   const wxSize& size, long style)
+    : wxTreeCtrl(parent, id, pos, size, style) {
+  // establish the invariant that root always exists
+  auto root_info = new ViewInfo<kViewTypeSparse>;
+  root_info->Init(wxPoint(0, 0), -wxDefaultPosition); // set ranges to [0, 1]
+  root_info->set_direction(0);
+  AddRoot("root", -1, -1, root_info);
+}
+
+void ViewTree::ChangeViewType(const wxTreeItemId& id, ViewType type) {
+  const auto& old_info = GetViewInfo(id);
+  ItemDataBase* info = ViewInfoBase::Create(type, old_info.direction());
+  info->Init(old_info.first(), old_info.last());
   SetItemData(id, info);
+  delete &old_info;  // note that SetItemData() doesn't free the old one
 }
 
 unsigned ViewTree::GetLevel(const wxTreeItemId& id) const {
@@ -371,14 +445,25 @@ unsigned ViewTree::GetLevel(const wxTreeItemId& id) const {
   return lvl;
 }
 
+void ViewTree::ReadConfig(const char* path) {
+  FILE* fin = fopen(path, "r");
+  if (fin == nullptr)
+    return;
+
+  using namespace rapidjson;
+  char buffer[1 << 16];            // 65K buffer
+  FileReadStream is(fin, buffer, sizeof(buffer));
+  Document doc;
+  doc.ParseStream(is);
+  ViewTreeBuilder(*this, doc);
+}
+
 void ViewTree::WriteConfig(std::ostream* os) const {
   JsonOutputStream jos(*os);
   JsonPrettyWriter pw(jos);
 
   std::stack<wxTreeItemId> stack;
   std::stack<wxTreeItemId> children;
-  wxTreeItemId unset; unset.Unset();  // sentinel for end of a nesting level
-  // stack.push(unset);
   const auto& root_id = GetRootItem();
   stack.push(root_id);
   do {
@@ -393,11 +478,15 @@ void ViewTree::WriteConfig(std::ostream* os) const {
       const wxString& name = GetItemText(id);
       pw.String(name.mb_str(), name.length());
     }
-    pw.StartObject();
-    GetViewInfo(id).WriteConfig(pw);
+    auto info = static_cast<const ViewInfoBase*>(GetItemData(id));
+    pw.StartObject()
+        .String("type").Int(info->type())
+        .String("direction").Int(info->direction());
+    info->WriteConfig(pw);
 
     // push the unset id as a sentinel value for the end of a nesting level
-    stack.push(unset);
+    stack.emplace();
+    stack.top().Unset();
 
     // push the children in reverse order
     wxTreeItemIdValue cookie;
@@ -408,24 +497,6 @@ void ViewTree::WriteConfig(std::ostream* os) const {
     for (; !children.empty(); children.pop())
       stack.push(std::move(children.top()));
   } while (!stack.empty());
-}
-
-void ViewTree::ItemDataBase::WriteConfig(std::ostream* os) const {
-  JsonOutputStream jos(*os);
-  JsonPrettyWriter pw(jos);
-  pw.StartObject();
-  WriteConfig(pw);
-  pw.EndObject();
-}
-
-void ViewTree::ItemDataBase::WriteConfig(JsonPrettyWriter& writer) const {
-  writer
-      .String("type").Int(type())
-      .String("direction").Int(direction())
-      .String("first_row").Int(first().y)
-      .String("first_col").Int(first().x)
-      .String("last_row").Int(last().y)
-      .String("last_col").Int(last().x);
 }
 
 bool ViewTree::ItemDataBase::Contains(const wxPoint& indices) const {

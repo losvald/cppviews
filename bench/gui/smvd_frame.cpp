@@ -58,6 +58,11 @@ void MainFrame::OnOpen(wxCommandEvent&) {
   DisplayMatrix();
   display_->SetFocus();
 
+  auto& root_info = view_tree_->GetViewInfo(view_tree_->GetRootItem());
+  const auto& sm = wxGetApp().matrix();
+  root_info.Init(wxPoint(0, 0), wxPoint(sm.col_count(), sm.row_count()));
+
+  view_tree_->ReadConfig(wxGetApp().config_path().mb_str());
   SelectView(view_tree_->GetRootItem());
 }
 
