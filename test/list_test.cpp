@@ -274,15 +274,15 @@ TEST(ListTest, ConstructorPoly) {
   EXPECT_EQ(il2.end(), ++it2);
 }
 
-TEST(ListTest, StridesAndSize) {
+TEST(ListTest, SizesAndSize) {
   int var = 2;
   auto il1d = MakeList([&](size_t index) { return &var; }, 7);
-  EXPECT_EQ(7, il1d.strides()[0]);
+  EXPECT_EQ(7, il1d.sizes()[0]);
   EXPECT_EQ(7, il1d.size());
 
   auto il3d = MakeList([&](int x, size_t y, char z) { return &var; },
                        5, size_t(3), 2);
-  EXPECT_EQ((std::array<size_t, 3>({5, 3, 2})), il3d.strides());
+  EXPECT_EQ((std::array<size_t, 3>({5, 3, 2})), il3d.sizes());
   EXPECT_EQ(30, il3d.size());
 }
 

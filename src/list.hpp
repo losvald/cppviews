@@ -291,7 +291,7 @@ class ListBase : public View<T> {
            // size_t, Disabler>::type size,
            Sizes... sizes) :
       View<T>(list_detail::SizeProduct(size, static_cast<size_t>(sizes)...)),
-      strides_{{size, static_cast<size_t>(sizes)...}},
+      sizes_{{size, static_cast<size_t>(sizes)...}},
     offsets_{{list_detail::ZeroSize<Sizes>()...}} {
       // XXX: this *sometimes* fails for some reason ... (so does SFINAE above)
       // static_assert(1 + sizeof...(Sizes) == dims,
@@ -301,7 +301,7 @@ class ListBase : public View<T> {
 
   virtual T& get(const SizeArray& indexes) const = 0;
 
-  const SizeArray& strides() const { return strides_; }
+  const SizeArray& sizes() const { return sizes_; }
 
   typename View<T>::Iterator fbegin() const {
     return this->begin();
@@ -311,7 +311,7 @@ class ListBase : public View<T> {
   }
 
  protected:
-  SizeArray strides_;
+  SizeArray sizes_;
   SizeArray offsets_;
 };
 
@@ -580,11 +580,11 @@ class List<void, dims, kListNoFlags, Accessor, T>
     V_DEF_VIEW_ITER_IS_EQUAL(T, Iterator)
 
     void Increment() {
-      if (++indexes_.back() >= list_->strides_.back()) {
+      if (++indexes_.back() >= list_->sizes_.back()) {
         // TODO: use a constexpr function that unrolls the loop at compile time
         for (int dim = dims - 1; dim > 0; ) {
           indexes_[dim--] = 0;
-          if (++indexes_[dim] < list_->strides_[dim])
+          if (++indexes_[dim] < list_->sizes_[dim])
             break;
         }
       }
@@ -609,7 +609,7 @@ class List<void, dims, kListNoFlags, Accessor, T>
        Sizes... sizes)
       : ListBase<T, dims>(size, sizes...),
         accessor_(accessor),
-        strides_{{size, static_cast<size_t>(sizes)...}},
+        sizes_{{size, static_cast<size_t>(sizes)...}},
     offsets_{{list_detail::ZeroSize<Sizes>()...}} {}
 
   template<typename... Subs>
@@ -617,7 +617,7 @@ class List<void, dims, kListNoFlags, Accessor, T>
       : ListBase<T, dims>(list_detail::SizeProduct(
           sub.second, static_cast<Sub>(subs).second...)),
         accessor_(accessor),
-        strides_{{sub.second, static_cast<Sub>(subs).second...}},
+        sizes_{{sub.second, static_cast<Sub>(subs).second...}},
     offsets_{{sub.first, static_cast<Sub>(subs).first...}} {
       static_assert(1 + sizeof...(Subs) == dims,
                     "The number of subs does not match dims");
@@ -651,7 +651,7 @@ class List<void, dims, kListNoFlags, Accessor, T>
     return this->get0(indexes, cpp14::make_index_sequence<dims>());
   }
 
-  const SizeArray& strides() const { return strides_; }
+  const SizeArray& sizes() const { return sizes_; }
 
   typename View<T>::Iterator begin() const {
     return this->iterator_begin();
@@ -682,12 +682,12 @@ class List<void, dims, kListNoFlags, Accessor, T>
 
   template<size_t Index, size_t... Indexes>
   Iterator* end(cpp14::index_sequence<Index, Indexes...>) const {
-    return new Iterator(this, strides_.front(),
+    return new Iterator(this, sizes_.front(),
                         list_detail::ZeroSize<Indexes>()...);
   }
 
   Accessor accessor_;
-  SizeArray strides_;
+  SizeArray sizes_;
   SizeArray offsets_;
 };
 
