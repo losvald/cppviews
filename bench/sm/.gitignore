@@ -1,0 +1,6 @@
+/*_checker
+/*_checker.cpp
+/*.hpp
+
+# Allow some examples which are not auto-generated
+!/all7.hpp
