@@ -297,6 +297,8 @@ class ListBase : public View<T> {
       // static_assert(1 + sizeof...(Sizes) == dims,
       //               "The number of sizes does not match dims");
     }
+
+  // ListBase() = default;
   virtual ~ListBase() noexcept = default;
 
   virtual T& get(const SizeArray& indexes) const = 0;
@@ -612,6 +614,12 @@ class List<void, dims, kListNoFlags, Accessor, T>
         sizes_{{size, static_cast<size_t>(sizes)...}},
     offsets_{{list_detail::ZeroSize<Sizes>()...}} {}
 
+  template<typename... Sizes>
+  List(typename std::conditional<1 + sizeof...(Sizes) == dims,
+       size_t, Disabler>::type size,
+       Sizes... sizes)
+      : List(Accessor(), size, sizes...) {}
+
   template<typename... Subs>
   List(Accessor accessor, Sub sub, Subs... subs)
       : ListBase<T, dims>(list_detail::SizeProduct(
@@ -632,6 +640,11 @@ class List<void, dims, kListNoFlags, Accessor, T>
       offset += *it++;
   }
 
+  // template<typename... Sizes>
+  // List(Accessor accessor) : accessor_(accessor) {}
+
+  // List() = default;
+
   template<typename... Indexes>
   T& operator()(Indexes... indexes) const {
     return *(list_detail::Pairwise<Indexes...>::template
@@ -650,6 +663,9 @@ class List<void, dims, kListNoFlags, Accessor, T>
   T& get(const SizeArray& indexes) const {
     return this->get0(indexes, cpp14::make_index_sequence<dims>());
   }
+
+  Accessor& accessor() { return accessor_; }
+  const Accessor& accessor() const { return accessor_; }
 
   const SizeArray& sizes() const { return sizes_; }
 
