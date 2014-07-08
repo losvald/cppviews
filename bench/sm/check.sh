@@ -7,15 +7,13 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 name=$(basename $1)
+name=${name%.*}  # for convenience, ignore extension
 shift
 
 bin="$src_dir/${name}_checker"
 cpp="$bin.cpp"
 
-echo $bin
-echo $cpp
-
-# trap "rm -f '$bin' '$cpp'" EXIT
+trap "rm -f '$bin' '$cpp'" EXIT
 >"$cpp"
 echo "#include \"$name.hpp\"" >>"$cpp"
 echo "typedef SmvFactory<$name> SmvFactoryType;" >>"$cpp"
@@ -33,8 +31,9 @@ eval "$compile_cmd"
 echo "Running checker ..."
 run_cmd="'./$bin' $@ $src_dir/$name.mtx"
 echo "$run_cmd"
-if ! eval "$run_cmd"; then
-    exit_code=$?
+eval "$run_cmd"
+exit_code=$?
+if (( $exit_code != 0 )); then
     echo "FAILED (exit_code = $exit_code)"
     exit $exit_code
 fi
