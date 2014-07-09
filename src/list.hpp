@@ -298,7 +298,7 @@ class ListBase : public View<T> {
       //               "The number of sizes does not match dims");
     }
 
-  // ListBase() = default;
+  ListBase() = default;
   virtual ~ListBase() noexcept = default;
 
   virtual T& get(const SizeArray& indexes) const = 0;
@@ -339,13 +339,7 @@ enum ListFlags : uint8_t {
       kListOpDeque = kListOpInsEnd | kListOpDelEnd
       };
 
-struct ListFactory {
-  template<typename... Args>
-  constexpr auto operator()(Args&&... args) const ->
-      decltype(MakeList(std::forward<Args>(args)...)) {
-    return MakeList(std::forward<Args>(args)...);
-  }
-};
+struct ListFactory;
 
 template<typename T, class L = ListBase<T> >
 using SubviewVector = PolyVector<L, ListBase<T, L::kDims>, ListFactory>;
@@ -730,6 +724,14 @@ constexpr auto MakeList(Accessor a, Sub sub, Subs... subs)
                  ::type, (1 + sizeof...(Subs)), Accessor>
     -> V_LIST_TYPE { return V_LIST_TYPE(a, sub, subs...); }
 #undef V_LIST_TYPE
+
+struct ListFactory {
+  template<typename... Args>
+  constexpr auto operator()(Args&&... args) const ->
+      decltype(MakeList(std::forward<Args>(args)...)) {
+    return MakeList(std::forward<Args>(args)...);
+  }
+};
 
 }  // namespace v
 
