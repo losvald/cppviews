@@ -277,6 +277,11 @@ class List1DIter
 
 }  // namespace list_detail
 
+template<class ListType>
+struct ListTraits {
+  static const unsigned kDims = ListType::kDims;
+};
+
 template<typename T, unsigned dims = 1>
 class ListBase : public View<T> {
   // struct Disabler {};  // used for SFINAE (to disable constructors
@@ -341,76 +346,20 @@ enum ListFlags : uint8_t {
 
 struct ListFactory;
 
-template<typename T, class L = ListBase<T> >
-using SubviewVector = PolyVector<L, ListBase<T, L::kDims>, ListFactory>;
+template<class ListType>
+using ListVector = PolyVector<ListType,
+                              ListBase<typename ListType::DataType,
+                                       ListTraits<ListType>::kDims>,
+                              ListFactory>;
 
 template<class SubviewType, unsigned dims = 1,
          ListFlags flags = kListNoFlags,
          class Indexer = list_detail::LinearizedMonotonicIndexer<
-           SubviewVector<typename SubviewType::DataType, SubviewType>
-           >,
+           ListVector<SubviewType> >,
          typename T = typename SubviewType::DataType,
          class Enable = void  // used for SFINAE (in specialization)
          >
 class List;
-//     : public ListBase<T, dims> {
-//   // typedef List<T, SubviewVector<List>, dims, Indexer> CompositeType;
-
-//   class Iterator : public std::iterator<std::forward_iterator_tag, T>,
-//                    public View<T>::IteratorBase {
-//    public:
-//     Iterator(const Indexer* indexer, size_t index)
-//         : indexer_(indexer),
-//           index_(index) {}
-//     Iterator(const Iterator&) = default;
-
-//     V_DEF_VIEW_ITER_OPERATORS(Iterator, this)
-
-//     bool operator==(const Iterator& other) const {
-//       return indexer_ == other.indexer_ && index_ == other.index_;
-//     }
-
-//    protected:
-//     V_DEF_VIEW_ITER_IS_EQUAL(Iterator)
-
-//     void Increment() override { ++index_; }
-//     T& ref() const override {
-//       // TODO
-//     }
-
-//    private:
-//     const Indexer* indexer_;
-
-//     size_t index_;
-//   };
-
-//   // List() : indexer_(portions_) {}
-//   // List(C&& subviews)
-//   //     : ListBase<T, dims>(subviews.size()),
-//   //       subviews_(std::forward<C>(subviews)),
-//   //       indexer_(subviews_) {}
-
-//   // List(typename C::ValueType... subviews)
-//   //     : ListBase<T, dims>(c.size()),
-//   //       subviews_(std::forward<C>(c)),
-//   //       indexer_(subviews_) {}
-
-//   inline void set(const T& value, size_t index) const {
-//     const_cast<T&>(this->get(index)) = value;
-//   }
-
-//   inline const T& get(size_t index) const {
-//     // return indexer_(index);
-//   }
-
-//   inline size_t max_size() const { return subviews_.max_size(); }
-
-//  private:
-//   C subviews_;
-// };
-
-// template<typename T, unsigned dims = 1>
-// using CompositeList<T, dims> = List<T, ListBase<T, dims>, dims>;
 
 // specializations for 1D lists
 
