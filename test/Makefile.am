@@ -12,6 +12,7 @@ unittest_all_SOURCES = test.cpp \
 	util/iterator_test.cpp \
 	util/poly_vector_test.cpp \
 	portion_test.cpp \
+	chain_test.cpp \
 	list_test.cpp \
 	bench/util/sparse_matrix_test.cpp
 
