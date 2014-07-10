@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <numeric>
+#include <utility>
+#include <vector>
 
 namespace v {
 
@@ -57,6 +59,10 @@ class List<
   struct Disabler {};  // used for SFINAE (to disable constructors)
 
  public:
+  typedef std::array<size_t, dims - 1> LateralOffset;
+  typedef std::pair<size_t, LateralOffset> LateralOffsetEntry;
+  typedef std::pair<size_t, size_t> GapEntry;
+
   template<typename... Sizes>
   List(ListVector<SublistType>&& lists, DataType* default_value,
        typename std::conditional<1 + sizeof...(Sizes) == dims,
@@ -64,14 +70,55 @@ class List<
        Sizes... sizes)
       : ListBaseType(size, sizes...),
         default_value_(default_value),
-        lists_(std::move(lists)) {}
+        lists_(std::move(lists)),
+        nesting_offsets_(lists_.size()) {}
 
   List(ListVector<SublistType>&& lists,
-       DataType* default_value = nullptr)
+       DataType* default_value = nullptr,
+       const std::vector<LateralOffsetEntry>& lateral_offsets = {},
+       const std::vector<GapEntry>& sorted_gaps = {})
       : lists_(std::move(lists)),
-        default_value_(default_value) {
+        default_value_(default_value),
+        nesting_offsets_(lists_.size()) {
+    for (const auto& entry : lateral_offsets)
+      SetLateralOffset(entry.first, entry.second);
+
+    // compute non-lateral nesting offsets
+    size_t last_gap_index = 0;
+    size_t cur_nesting_offset = 0;
+    auto nesting_offset = nesting_offsets_.begin();
+    auto list = lists_.cbegin();
+#define V_THIS_COMPUTE_NESTING_OFFSETS(index_to)                \
+    { const size_t gap_index_to = (index_to);                   \
+      for (size_t i = last_gap_index; i < gap_index_to; ++i) {  \
+        (*nesting_offset++)[chain_dim] = cur_nesting_offset;    \
+        cur_nesting_offset += (list++)->sizes()[chain_dim];     \
+      }                                                         \
+    }
+    for (const auto& gap_entry : sorted_gaps) {
+      V_THIS_COMPUTE_NESTING_OFFSETS(gap_entry.first);
+      last_gap_index = gap_entry.first;
+      cur_nesting_offset += gap_entry.second;
+    }
+    V_THIS_COMPUTE_NESTING_OFFSETS(lists_.size());
+#undef V_THIS_COMPUTE_NESTING_OFFSETS
+
     ClearSizeArray(ListBaseType::offsets_);
-    ComputeSizes(lists_, ListBaseType::sizes_);
+
+    // compute non-lateral size
+    auto& sizes_ = ListBaseType::sizes_;
+    const size_t trailing_gap =
+        (sorted_gaps.empty() || sorted_gaps.back().first != lists_.size()) ? 0
+        : sorted_gaps.back().second;
+    sizes_[chain_dim] =
+        nesting_offsets_.back()[chain_dim] +
+        lists_.back().sizes()[chain_dim] +
+        trailing_gap;
+
+    for (unsigned dim = 0; dim < chain_dim; ++dim)
+      ComputeLateralSize(lists_, nesting_offsets_, sizes_, dim);
+    for (unsigned dim = chain_dim + 1; dim < dims; ++dim)
+      ComputeLateralSize(lists_, nesting_offsets_, sizes_, dim);
   }
 
   DataType& get(const SizeArray& indexes) const override {
@@ -84,31 +131,41 @@ class List<
     return *reinterpret_cast<typename View<DataType>::Iterator*>(NULL);
   }
 
+  const SizeArray& nesting_offset(size_t index) const {
+    return nesting_offsets_[index];
+  }
+
  private:
   static void ClearSizeArray(typename List::SizeArray& a) {
     std::fill(a.begin(), a.end(), typename List::SizeArray::size_type());
   }
 
-  static void ComputeSizes(const Container& lists,
-                           typename List::SizeArray& sizes) {
-    typedef typename List::SizeArray::size_type Size;
-    Size kZeroSize = Size();
-    ClearSizeArray(sizes);
-    for (unsigned dim = 0; dim < dims; ++dim) {
-#define V_THIS_ACCUMULATE(ret)      \
-      sizes[dim] = std::accumulate(                                     \
-          lists.begin(), lists.end(), kZeroSize,                        \
-          [&](const Size& size, const SublistType& l) { return (ret); })
-      if (dim + chain_dim + 1u == dims) {  // XXX:
-        V_THIS_ACCUMULATE(size + l.sizes()[dim]);
-      } else {
-        V_THIS_ACCUMULATE(std::max(size, l.sizes()[dim]));
-      }
+  static void ComputeLateralSize(const Container& lists,
+                                 const std::vector<SizeArray>& nesting_offsets,
+                                 typename List::SizeArray& sizes,
+                                 int dim) {
+    auto& size = sizes[dim];
+    auto list = lists.cbegin();
+    auto nesting_offset = nesting_offsets.cbegin();
+    typename List::SizeArray::size_type min_nesting_offset = -1u;
+    size = 0;
+    for (size_t i = lists.size(); i--; ++list, ++nesting_offset) {
+      const auto& cur_nesting_offset = (*nesting_offset)[dim];
+      min_nesting_offset = std::min(min_nesting_offset, cur_nesting_offset);
+      size = std::max(size, cur_nesting_offset + list->sizes()[dim]);
     }
+    size -= min_nesting_offset;
+  }
+
+  void SetLateralOffset(size_t index, const LateralOffset& offset) {
+    auto& nesting_offset = nesting_offsets_[index];
+    std::copy(offset.begin() + chain_dim, offset.end(),
+              1+std::copy_n(offset.begin(), chain_dim, nesting_offset.begin()));
   }
 
   Container lists_;
   DataType* default_value_;
+  std::vector<SizeArray> nesting_offsets_;
 };
 
 }  // namespace v
