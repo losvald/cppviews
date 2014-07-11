@@ -6,8 +6,24 @@
 #include <vector>
 #include <type_traits>
 
-template<typename T>
-using PolyList = List<PortionBase<T> >;
+TEST(ListTest, Dummy) {
+  DummyList<int, 3> dl;
+  typedef ListBase<int, 3>::SizeArray SizeArray;
+  EXPECT_EQ((SizeArray({0, 0, 0})), dl.sizes());
+
+  EXPECT_EQ(dl.lbegin(), dl.lend());
+  EXPECT_EQ(dl.fbegin(), dl.fend());
+  EXPECT_EQ(dl.begin(), dl.end());
+
+  EXPECT_EQ(dl.lbegin() + 0, dl.lbegin());
+  EXPECT_EQ(dl.end() -= 0, dl.end());
+
+  EXPECT_EQ(dl.begin(), dl.cbegin());
+  EXPECT_EQ(dl.cend(), dl.end());
+  decltype(dl.clend()) cit = dl.lend();
+  EXPECT_EQ(cit, dl.clend());
+  // decltype(dl.lend()) it = dl.clend();  // compile error - OK
+}
 
 TEST(ListTest, PortionVector) {
   int arr[] = {0, 10, 20, 30, 40, 50};

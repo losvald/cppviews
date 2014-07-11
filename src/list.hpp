@@ -80,6 +80,42 @@ struct Pairwise<N0, Ns...> {
 template<typename... Args>
 void Ignore(Args&&... args) {}
 
+template<typename DataType>
+class DummyListIter
+    : public DefaultIterator<DummyListIter<DataType>,
+                             std::random_access_iterator_tag,
+                             DataType>,
+      public View<DataType>::IteratorBase {
+  V_DEFAULT_ITERATOR_DERIVED_HEAD(DummyListIter);
+  template<typename> friend class DummyListIter;
+ public:
+  explicit DummyListIter() {
+  }
+
+  template<typename DataType2>
+  DummyListIter(const DummyListIter<DataType2>& other,
+                typename std::enable_if<
+                std::is_convertible<DataType2*, DataType*>::value,
+                Enabler>::type = Enabler()) {}
+
+ protected:
+  V_DEF_VIEW_ITER_IS_EQUAL(DataType, DummyListIter)
+  template<typename DataType2>
+  bool IsEqual(const DummyListIter<DataType2>& other) const override {
+    return true;
+  }
+  void Increment() override {}
+
+  template<typename DataType2>
+  typename DefaultIterator_::difference_type
+  DistanceTo(const DummyListIter<DataType2>& to) const { return 0; }
+  void Advance(typename DefaultIterator_::difference_type n) {}
+
+  DataType& ref() const override {
+    return *static_cast<DataType*>(nullptr);  // Undefined Behavior, but fast
+  }
+};
+
 template<class SubviewContainer>
 using SubviewContainerElementType = typename
     SubviewContainer::ValueType::DataType;
@@ -365,7 +401,50 @@ template<class SubviewType, unsigned dims = 1,
          >
 class List;
 
-// specializations for 1D lists
+// specialization for dummy list (all-zero sizes)
+template<typename T, unsigned dims>
+using DummyList = List<void, dims, kListNoFlags, void, T>;
+
+template<unsigned dims, typename T>
+class List<void, dims, kListNoFlags, void, T> : public ListBase<T, dims> {
+  typedef ListBase<T, dims> ListBaseType;
+ public:
+  typedef list_detail::DummyListIter<T> Iterator;
+  typedef list_detail::DummyListIter<const T> ConstIterator;
+
+  List() {
+    // TODO: use metaprogramming to initialize sizes to all 0 at compile time
+    ListBaseType::sizes_.fill(0);
+  }
+  void ShrinkToFirst() override {}
+
+  T& get(const typename ListBaseType::SizeArray& indexes) const override {
+    static T todo = T();
+    return todo;  // TODO: implement
+  }
+
+  typename View<T>::Iterator iterator_begin() const override {
+    return new Iterator();
+  }
+
+  // define iterator accessors of the following form:
+  //   [Const]Iterator [prefix]begin|end() const { return [Const]Iterator(); }
+  // where prefix is either "" or "l", e.g. lbegin(), cend(), clbegin() etc.
+#define V_THIS_DEF_ITER_ACCESSOR(type, method)  \
+  type method() const { return type(); }
+#define V_THIS_DEF_ITER_ACCESSORS(prefix)                       \
+  V_THIS_DEF_ITER_ACCESSOR(Iterator, prefix ## begin)           \
+  V_THIS_DEF_ITER_ACCESSOR(Iterator, prefix ## end)             \
+  V_THIS_DEF_ITER_ACCESSOR(ConstIterator, c ## prefix ## begin) \
+  V_THIS_DEF_ITER_ACCESSOR(ConstIterator, c ## prefix ## end)
+
+  V_THIS_DEF_ITER_ACCESSORS()
+  V_THIS_DEF_ITER_ACCESSORS(l)
+#undef V_THIS_DEF_ITER_ACCESSOR
+#undef V_THIS_DEF_ITER_ACCESSORS
+};
+
+// specialization for 1D lists
 
 template<typename T, class P = PortionBase<T> >
 using PortionVector = PolyVector<P, PortionBase<T>, PortionFactory>;
