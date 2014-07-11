@@ -306,6 +306,10 @@ class ListBase : public View<T> {
   ListBase() = default;
   virtual ~ListBase() noexcept = default;
 
+  virtual void ShrinkToFirst() {
+    sizes_.fill(0);
+  }
+
   virtual T& get(const SizeArray& indexes) const = 0;
 
   const SizeArray& sizes() const { return sizes_; }
@@ -424,6 +428,12 @@ class List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>
         indexer_(AppendDummy(container_)) {
 
     container_.Shrink();
+  }
+
+  void ShrinkToFirst() override {
+    // remove everything except the dummy portion
+    ListBase<DataType>::ShrinkToFirst();
+    container_.Erase(++container_.begin(), container_.end());
   }
 
   inline void set(const DataType& value, size_t index) const {

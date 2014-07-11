@@ -121,6 +121,11 @@ class List<
       ComputeLateralSize(lists_, nesting_offsets_, sizes_, dim);
   }
 
+  void ShrinkToFirst() override {
+    ListBaseType::ShrinkToFirst();
+    lists_.Erase(++lists_.begin(), lists_.end());
+  }
+
   DataType& get(const SizeArray& indexes) const override {
     static DataType todo = DataType();
     return todo;  // TODO: implement
