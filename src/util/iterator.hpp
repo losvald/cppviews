@@ -22,7 +22,7 @@ struct InputIterHelper {
   bool operator!=(const InputIterHelper& rhs) const { return it_ != rhs.it_; }
 
   // expose this helper accessor to allow for non-const to const conversion
-  const InputIter& it() const { return it_; }
+  const InputIter& iterator() const { return it_; }
  protected:
   InputIter it_;
 };
@@ -130,7 +130,7 @@ class TransformedIterator : public std::iterator<
   // it's legit (and more generic) to allow const to non-const conversion
   // from iterators with different transformer functions
   TransformedIterator(const detail::InputIterHelper<NonConstInputIter>& h)
-      : TransformedIterator(h.it()) {}
+      : TransformedIterator(h.iterator()) {}
 
   detail::TransformedIterRef<InputIter, Func> operator*() const {
     return func_(*this->it_);
@@ -138,10 +138,10 @@ class TransformedIterator : public std::iterator<
   detail::TransformedIterPointer<InputIter, Func> operator->() const {
     return &this->operator*();
   }
- private:
-  // hide the helper accessor used for non-const to const conversion
-  const InputIter& it() const { return this->it_; }
 
+  InputIter& iterator() { return this->it_; }
+
+ private:
   Func func_;
 };
 
