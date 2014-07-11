@@ -110,6 +110,12 @@ class PolyVector {
   void GrowBack() { v_.emplace_back(); }
   void Shrink() { v_.shrink_to_fit(); }
 
+  Iterator Erase(Iterator first, Iterator last) {
+    // TODO: g++ 4.8 doesn't support const_iterator in erase, so use iterator
+    // (for compilers that support const_iterator, iterator will convert to it)
+    return v_.erase(v_.begin(), v_.end());
+  }
+
   void reset(SizeType index, T* ptr) { v_[index].reset(ptr); }
 
   Iterator begin() { return v_.begin(); }
