@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 
 struct String : public std::string {
   template<typename... Args>
@@ -38,18 +39,11 @@ struct PolyVectorTest : public ::testing::Test {
 };
 
 #define V__POLYVEC_APP(type, arg, ...)               \
-  template Append<type>(arg, ##__VA_ARGS__)
+  template Append/*<type>*/(arg, ##__VA_ARGS__)
 
-struct ReversedStringFactory {
-  template<typename... Args>
-  ReversedString operator()(Args&&... args) const {
-    FAIL();                  // verify this functor is not ever called
-  }
-};
-
-TYPED_TEST(PolyVectorTest, StringTypes) {
+TYPED_TEST(PolyVectorTest, DefaultFactory) {
   PolyVector<TypeParam, String> pv;
-  pv.template Append<TypeParam>(3, 'a');
+  pv.template Append/*<TypeParam>*/(3, 'a');
   EXPECT_EQ("aaa", pv[0]);
   pv.V__POLYVEC_APP(TypeParam, "bb");
   EXPECT_EQ("bb", pv[1]);
@@ -78,6 +72,13 @@ TYPED_TEST(PolyVectorTest, StringTypes) {
   EXPECT_EQ(s, pv_same[0]);
 }
 
+struct ReversedStringFactory {
+  template<typename... Args>
+  ReversedString operator()(Args&&... args) const {
+    FAIL();                  // verify this functor is not ever called
+  }
+};
+
 TEST(PolyVectorSameClassTest, FactoryNoOverload) {
   PolyVector<String, String, ReversedStringFactory> pvr;
   pvr.Append("bats");
@@ -87,6 +88,7 @@ TEST(PolyVectorSameClassTest, FactoryNoOverload) {
   PolyVector<SortedString, SortedString> pv;
   pv.Append(abot);
   EXPECT_EQ("abot", pv[0]);
+  // pv.Add(pv.cbegin(),
 }
 
 struct StringFactory {
@@ -123,4 +125,75 @@ TEST(PolyVectorSameClassTest, FactoryOverload) {
   EXPECT_ANY_THROW(dynamic_cast<ReversedString&>(pv[2]));
   EXPECT_ANY_THROW(dynamic_cast<SortedString&>(pv[2]));
   EXPECT_EQ("XXX", pv[2]);
+}
+
+struct AbstractRange {
+  virtual int from() const = 0;
+  virtual int to() const = 0;
+  friend bool operator==(const AbstractRange& lhs, const AbstractRange& rhs) {
+    return lhs.from() == rhs.from() && lhs.to() == rhs.to();
+  }
+  friend bool operator!=(const AbstractRange& lhs, const AbstractRange& rhs) {
+    return !(lhs == rhs);
+  }
+};
+
+struct SingletonRange : public AbstractRange {
+  SingletonRange(int from) : from_(from) {}
+  int from() const override { return from_; }
+  int to() const override { return from_; }
+  friend std::ostream& operator<<(::std::ostream& os, const SingletonRange& r) {
+    return os << '[' << r.from_ << ']';
+  }
+ private:
+  int from_;
+};
+
+struct Range : public AbstractRange {
+  Range(int from, int to) : from_(from), to_(to) {}
+  int from() const override { return from_; }
+  int to() const override { return to_; }
+  friend std::ostream& operator<<(::std::ostream& os, const Range& r) {
+    return os << '[' << r.from_ << ' ' << r.to_ << ']';
+  }
+ private:
+  int from_, to_;
+};
+
+struct RangeFactory {
+  Range operator()(int from, int to) const { return Range(from, to); }
+  SingletonRange operator()(int from) const { return SingletonRange(from); }
+};
+
+typedef ::testing::Types<
+  AbstractRange,
+  Range
+  > RangeTypes;
+TYPED_TEST_CASE(PolyVectorAbstractBaseTest, RangeTypes);
+
+template<typename T>
+struct PolyVectorAbstractBaseTest : public ::testing::Test {
+};
+
+TYPED_TEST(PolyVectorAbstractBaseTest, InsertAndErase) {
+  PolyVector<TypeParam, AbstractRange, RangeFactory> pv;
+  pv.Add(pv.begin(), 13, 42);
+  EXPECT_EQ(Range(1, 10), *pv.Add(pv.begin(), 1, 10));
+  EXPECT_EQ(Range(2, 20), *pv.Add(++pv.begin(), 2, 20));
+  EXPECT_EQ(3, pv.size());
+  EXPECT_EQ(Range(1, 10), pv[0]);
+  EXPECT_EQ(Range(2, 20), pv[1]);
+  EXPECT_EQ(Range(13, 42), pv[2]);
+
+  pv.Add(pv.end(), 99, 999);
+  pv.Erase(pv.begin() + 1, pv.begin() + 3);
+  EXPECT_EQ(2, pv.size());
+  EXPECT_EQ(Range(1, 10), pv.front());
+  EXPECT_EQ(Range(99, 999), pv.back());
+
+  pv.Erase(pv.begin(), pv.begin());
+  EXPECT_EQ(2, pv.size());
+
+  pv.Erase(pv.begin(), pv.end());
+  EXPECT_EQ(0, pv.size());
 }

@@ -19,20 +19,42 @@ using PolyUniqPtr = typename std::conditional<
 
 template<class T, class Base>
 struct PolyVectorEmplaceHelper {
+  typedef std::vector<PolyUniqPtr<T, Base> > Vector;
+
   template<class Derived, typename... Args>
-  inline void Emplace(std::vector<PolyUniqPtr<T, Base> >& v,
-                      Args&&... args) const {
+  inline void EmplaceBack(Vector& v, Args&&... args) const {
     v.emplace_back(std::forward<Args>(args)...);
+  }
+
+  template<class Derived, typename... Args>
+  inline typename Vector::iterator
+  Emplace(typename Vector::iterator pos, Vector& v, Args&&... args) const {
+    return v.emplace(pos, std::forward<Args>(args)...);
   }
 };
 
 template<typename T>
 struct PolyVectorEmplaceHelper<T, T> {
+  typedef std::vector<PolyUniqPtr<T, T> > Vector;
+
   template<class Derived, typename... Args>
-  inline void Emplace(
-      std::vector<PolyUniqPtr<T, T> >& v, Args&&... args) const {
+  inline void EmplaceBack(Vector& v, Args&&... args) const {
+    v.emplace_back(Create<Derived>(std::forward<Args>(args)...));
+  }
+
+  template<class Derived, typename... Args>
+  inline typename Vector::iterator
+  Emplace(typename Vector::iterator pos, Vector& v, Args&&... args) const {
+    // TODO: g++ 4.8 doesn't support const_iterator in emplace, so use iterator
+    // (for compilers that support const_iterator, iterator will convert to it)
+    return v.emplace(pos, Create<Derived>(std::forward<Args>(args)...));
+  }
+
+ private:
+  template<class Derived, typename... Args>
+  static Derived* Create(Args&&... args) {
     // TODO: optimize using placement new (to ensure locality of pointed data)
-    v.emplace_back(new Derived(std::forward<Args>(args)...));
+    return new Derived(std::forward<Args>(args)...);
   }
 };
 
@@ -90,21 +112,33 @@ class PolyVector {
   inline Ref operator[](SizeType index) { return *v_[index]; }
 
   template<typename... Args>
-  inline PolyVector&& AppendThis(Args&&... args) {
-    return this->template Append<T>(std::forward<Args>(args)...);
-  }
-
-  template<typename... Args>
   inline PolyVector&& Append(Args&&... args) {
     return this->Append<decltype(FactoryType()(std::forward<Args>(args)...))>(
         std::forward<Args>(args)...);
   }
 
+  // Note: we use the overload above instead of having the following default
+  //   Derived = typename std::result_of<FactoryType(Args...)>::type>
+  // because this way we can explicitly resolve ambiguity
+
   template<class Derived, typename... Args>
   inline PolyVector&& Append(Args&&... args) {
     detail::PolyVectorEmplaceHelper<T, Base> h;
-    h.template Emplace<Derived>(v_, std::forward<Args>(args)...);
+    h.template EmplaceBack<Derived>(v_, std::forward<Args>(args)...);
     return std::move(*this);
+  }
+
+  template<typename... Args>
+  inline Iterator Add(Iterator pos, Args&&... args) {
+    return this->Add<decltype(FactoryType()(std::forward<Args>(args)...))>(
+        pos, std::forward<Args>(args)...);
+  }
+
+  template<class Derived, typename... Args>
+  Iterator Add(Iterator pos, Args&&... args) {
+    detail::PolyVectorEmplaceHelper<T, Base> h;
+    return h.template Emplace<Derived>(pos.iterator(), v_,
+                                       std::forward<Args>(args)...);
   }
 
   void GrowBack() { v_.emplace_back(); }
@@ -113,7 +147,7 @@ class PolyVector {
   Iterator Erase(Iterator first, Iterator last) {
     // TODO: g++ 4.8 doesn't support const_iterator in erase, so use iterator
     // (for compilers that support const_iterator, iterator will convert to it)
-    return v_.erase(v_.begin(), v_.end());
+    return v_.erase(first.iterator(), last.iterator());
   }
 
   void reset(SizeType index, T* ptr) { v_[index].reset(ptr); }
