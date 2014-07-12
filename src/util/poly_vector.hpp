@@ -141,7 +141,6 @@ class PolyVector {
                                        std::forward<Args>(args)...);
   }
 
-  void GrowBack() { v_.emplace_back(); }
   void Shrink() { v_.shrink_to_fit(); }
 
   Iterator Erase(Iterator first, Iterator last) {
@@ -166,6 +165,7 @@ class PolyVector {
 
   SizeType size() const { return v_.size(); }
   SizeType max_size() const { return v_.max_size(); }
+  bool empty() const { return v_.empty(); }
 
  private:
   struct IteratorTransformer {

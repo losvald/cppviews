@@ -419,8 +419,7 @@ class List<void, dims, kListNoFlags, void, T> : public ListBase<T, dims> {
   void ShrinkToFirst() override {}
 
   T& get(const typename ListBaseType::SizeArray& indexes) const override {
-    static T todo = T();
-    return todo;  // TODO: implement
+    return *static_cast<T*>(nullptr);  // Undefined Behavior, but fast
   }
 
   typename View<T>::Iterator iterator_begin() const override {
@@ -446,14 +445,7 @@ class List<void, dims, kListNoFlags, void, T> : public ListBase<T, dims> {
 
 // specialization for 1D lists
 
-template<typename T, class P = PortionBase<T> >
-using PortionVector = PolyVector<P, PortionBase<T>, PortionFactory>;
-
-#define V_LIST_INDEXER_TYPE \
-  list_detail::LinearizedMonotonicIndexer<PortionVector<typename P::DataType, P> >
-
-template<class P>
-using SimpleList = List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>;
+namespace detail {
 
 template<class P>
 struct SimpleListHelper {
@@ -468,18 +460,26 @@ template<typename T>
 struct SimpleListHelper<PortionBase<T> > {
   template<class Container>
   static void AppendEmpty(Container* c) {
-    typename Container::SizeType size = c->size();
-    // c->Append();  // XXX: this should work after fixing a bug
-    c->GrowBack();
-    c->reset(size, new DummyPortion<T>());
+    c->template Append<DummyPortion<T> >();
   }
 };
+
+}  // namespace detail
+
+template<typename T, class P = PortionBase<T> >
+using PortionVector = PolyVector<P, PortionBase<T>, PortionFactory>;
+
+#define V_LIST_INDEXER_TYPE list_detail:: \
+  LinearizedMonotonicIndexer<PortionVector<typename P::DataType, P> >
+
+template<class P>
+using SimpleList = List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>;
 
 template<class P>
 class List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>
     : public ListBase<typename P::DataType>,
       public PortionHelper<P, typename P::DataType>,
-      protected SimpleListHelper<P> {
+      protected detail::SimpleListHelper<P> {
   typedef V_LIST_INDEXER_TYPE Indexer;
   typedef typename P::DataType DataType;
   typedef PortionVector<DataType, P> Container;
@@ -567,7 +567,7 @@ class List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>
   static Container& AppendDummy(Container& container) {
     // put a sentinel empty portion at the back
     if (container.size())
-      SimpleListHelper<P>::template AppendEmpty(&container);
+      detail::SimpleListHelper<P>::template AppendEmpty(&container);
     return container;
   }
 
