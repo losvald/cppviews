@@ -122,7 +122,8 @@ class TransformedIterator : public std::iterator<
   detail::TransformedIterPointer<InputIter, Func>,
   detail::TransformedIterRef<InputIter, Func>
   >, public detail::MakeIterHelper<InputIter,
-                                   TransformedIterator<InputIter, Func> > {
+                                   TransformedIterator<InputIter, Func,
+                                                       NonConstInputIter> > {
  public:
   TransformedIterator() = default;
   TransformedIterator(InputIter it) { this->it_ = it; }
