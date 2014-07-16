@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <limits>
 #include <map>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -11,14 +12,14 @@
 // A simple time-efficient implementation of an immutable sparse matrix
 // Provides efficient iteration of non-zero elements by rows/cols,
 // e.g. to iterate over a range [row_from, row_to) x [col_from, col_to):
-//   for (int row = row_from; row < row_to; ++row) {
+//   for (auto row = row_from; row < row_to; ++row) {
 //     for (auto col_range = sm.nonzero_col_range(row, col_from, col_to);
 //          col_range.first != col_range.second; ++col_range.first) {
-//       int col = *col_range.first;
+//       auto col = *col_range.first;
 //       // use sm(row, col)
 //       ...
 //     }
-template<typename T = double, class Coord = int>
+template<typename T = double, class Coord = unsigned>
 class SparseMatrix {
   struct PointHasher;
   typedef std::map< Coord, std::vector<Coord> > NonZeroList;
@@ -53,7 +54,8 @@ class SparseMatrix {
     is >> row_count_ >> col_count_ >> n;
     values_.reserve(n);
     while (n--) {
-      Coord row, col; T val;
+      Coord row, col;
+      typename std::remove_cv<T>::type val;
       is >> row >> col >> val;
       values_[Point(--row, --col)] = val;
       rows_[col].push_back(row);
@@ -91,7 +93,9 @@ class SparseMatrix {
   size_t element_count() const { return size_t(row_count_) * col_count_; }
 
  private:
-  typedef std::unordered_map<Point, T, PointHasher> ValueMap;
+  typedef std::unordered_map<Point,
+                             typename std::remove_cv<T>::type,
+                             PointHasher> ValueMap;
 
   struct PointHasher {
     size_t operator()(const Point& p) const {

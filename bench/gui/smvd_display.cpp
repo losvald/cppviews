@@ -101,8 +101,8 @@ void Display::OnPaint(wxPaintEvent& evt) {
   }
   x += col_from, y += row_from;
   const auto& sm = wxGetApp().matrix();
-  const int row_to = std::min(y, sm.row_count());
-  const int col_to = std::min(x, sm.col_count());
+  const int row_to = std::min(y, int(sm.row_count()));
+  const int col_to = std::min(x, int(sm.col_count()));
 
   using namespace std::chrono;
   auto tp_before = steady_clock::now();
