@@ -18,10 +18,10 @@ class ChainedListVector : public ListVector<SublistType> {
   typedef ListVector<SublistType> ListVectorType;
   typedef typename ListVectorType::SizeType SizeType;
  public:
-  static const unsigned kChainDim = chain_dim;
   ChainedListVector(ListVectorType&& sv) : ListVectorType(std::move(sv)) {}
   ChainedListVector(SizeType capacity) : ListVectorType(capacity) {}
   ChainedListVector() = default;
+  static constexpr unsigned chain_dimension() { return chain_dim; }
 };
 
 template<class L>
@@ -49,12 +49,18 @@ struct ChainHelper<ListBase<T, dims> > {
 
 }  // namespace detail
 
+// For the MakeList overload, we need to somehow encode the chaining dimension.
+// One way would be to expose detail::ChainedListVector; however, this would
+// require reimplementation of a lot of methods to support the fluent interface.
+// An easier (and perhaps cleaner) way is to provide a tag which encodes it.
+template<unsigned chain_dim>
+struct ChainTag {};
+
 template<class SublistType,
          unsigned chain_dim = 0,
          ListFlags flags = kListOpVector,
          unsigned dims = ListTraits<SublistType>::kDims>  // it can also be >
-using Chain = List<SublistType, dims,
-                   flags,
+using Chain = List<SublistType, dims, flags,
                    detail::ChainedListVector<chain_dim,
                                              typename SublistType::DataType,
                                              ListTraits<SublistType>::kDims,
@@ -67,8 +73,7 @@ class List<
   dims,
   kListOpVector,
 #define V_THIS_DATA_TYPE typename SublistType::DataType
-  detail::ChainedListVector<chain_dim, V_THIS_DATA_TYPE, dims,
-                            SublistType>,
+  detail::ChainedListVector<chain_dim, V_THIS_DATA_TYPE, dims, SublistType>,
   typename SublistType::DataType,
   typename std::enable_if<dims >= ListTraits<SublistType>::kDims>::type>
     : public ListBase<V_THIS_DATA_TYPE, dims>,
@@ -81,7 +86,6 @@ class List<
   typedef ListBase<V_THIS_DATA_TYPE, dims> ListBaseType;
 #undef V_THIS_DATA_TYPE
   typedef typename SublistType::DataType DataType;
-  typedef typename ListBaseType::SizeArray SizeArray;
   typedef detail::ChainedListVector<chain_dim, DataType, dims, SublistType>
   Container;
   struct Disabler {};  // used for SFINAE (to disable constructors)
@@ -90,13 +94,13 @@ class List<
   typedef std::array<size_t, dims - 1> LateralOffset;
   typedef std::pair<size_t, LateralOffset> LateralOffsetEntry;
   typedef std::pair<size_t, size_t> GapEntry;
+  typedef typename ListBaseType::SizeArray SizeArray;  // for convenience
 
   template<typename... Sizes>
   List(ListVector<SublistType>&& lists, DataType* default_value,
        std::vector<SizeArray>&& nesting_offsets,
        typename std::conditional<1 + sizeof...(Sizes) == dims,
-       size_t, Disabler>::type size,
-       Sizes... sizes)
+       size_t, Disabler>::type size, Sizes... sizes)
       : ListBaseType(size, sizes...),
         lists_(std::move(lists)),
         default_value_(default_value),
@@ -157,6 +161,15 @@ class List<
                                               &nesting_offsets_);
   }
 
+  // used by MakeList
+  template<typename... Args>
+  List(ChainTag<chain_dim>, Args&&... args)
+      : List(std::forward<Args>(args)...) {}
+
+  friend List MakeList(List&& list) {
+    return std::forward<List>(List(std::move(list)));
+  }
+
   void ShrinkToFirst() override {
     ListBaseType::ShrinkToFirst();
     lists_.Erase(++lists_.begin(), lists_.end());
@@ -185,6 +198,8 @@ class List<
   const SizeArray& nesting_offset(size_t index) const {
     return nesting_offsets_[++index];
   }
+
+  static constexpr unsigned chain_dimension() { return chain_dim; }
 
  private:
   struct NonLateralBucketSizeGetter {
@@ -247,9 +262,25 @@ class List<
   Container lists_;
   DataType* default_value_;
   std::vector<SizeArray> nesting_offsets_;
-
   SkipListType fwd_skip_list_;
 };
+
+template<unsigned dims>
+using ChainOffsetVector = std::vector<std::array<size_t, dims> >;
+
+template<class Sublist, unsigned chain_dim, typename... Sizes>
+auto MakeList(ChainTag<chain_dim>,
+              ListVector<Sublist>&& lists,
+              typename Sublist::DataType* default_value,
+              ChainOffsetVector<Sublist::kDims>&& nesting_offsets,
+              Sizes... sizes)
+#define V_LIST_TYPE \
+    Chain<Sublist, chain_dim>
+    -> V_LIST_TYPE {
+  return V_LIST_TYPE(std::move(lists), default_value,
+                     std::move(nesting_offsets), sizes...);
+}
+#undef V_LIST_TYPE
 
 }  // namespace v
 

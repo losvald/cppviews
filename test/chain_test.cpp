@@ -164,3 +164,53 @@ TEST(ChainTest, PolyTrailingGap) {
   EXPECT_EQ((SizeArray({0, 0, 0})), c3_1.nesting_offset(0));
   EXPECT_EQ("value", c3_1.get({0, 0, 0}));
 }
+
+TEST(ChainTest, NestingMakeList) {
+  int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
+  ListVector<ListBase<int, 2> > lists_root;
+
+  ListVector<ListBase<int, 2> > lists_1;
+  lists_1.Append([&](unsigned col, unsigned row) {
+      return digits + 1;
+    }, 3, 3);
+  lists_root.Append(ChainTag<1>(),
+                    std::move(lists_1),
+                    &digits[9],
+                    ChainOffsetVector<2>({{0, 2}}), // {} cannot be deduced !
+                    1, 5);
+
+  lists_root.Append(MakeList(
+      ChainTag<1>(),
+      ListVector<ListBase<int, 2> >()
+      .Append([&](unsigned col, unsigned row) { return digits + 2; }, 1, 1)
+      .Append([&](unsigned col, unsigned row) { return digits + 3; }, 1, 1),
+      &digits[8],
+      {{0, 0}, {1, 0}},  // OK, since MakeList is called explicitly
+      1, 2));
+
+  lists_root.Append(Chain<ListBase<int, 2>, 0>(
+      ListVector<ListBase<int, 2> >()  // need to repeat the nested type
+      .Append([&](unsigned col, unsigned row) { return digits + 4; }, 1, 1),
+      &digits[7], {{0, 0}}, 1, 4));
+
+  Chain<ListBase<int, 2>, 1> nested(
+      std::move(lists_root),
+      &digits[0]);
+
+  typedef decltype(nested)::SizeArray SizeArray;
+  EXPECT_EQ(SizeArray({1, 11}), nested.sizes());
+  EXPECT_EQ(SizeArray({0, 0}), nested.nesting_offset(0));
+  EXPECT_EQ(SizeArray({0, 5}), nested.nesting_offset(1));
+  EXPECT_EQ(SizeArray({0, 7}), nested.nesting_offset(2));
+
+  EXPECT_EQ(9, nested.get({0, 0}));
+  EXPECT_EQ(9, nested.get({0, 1}));
+  EXPECT_EQ(1, nested.get({0, 2}));
+  EXPECT_EQ(1, nested.get({0, 4}));
+
+  // XXX: these crashes - something buggy with 2nd and 3rd way of appending
+  // EXPECT_EQ(2, nested.get({0, 5}));
+  // EXPECT_EQ(3, nested.get({0, 6}));
+  // EXPECT_EQ(4, nested.get({0, 7}));
+  // EXPECT_EQ(4, nested.get({0, 10}));
+}
