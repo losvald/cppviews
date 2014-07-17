@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
   SM sm;
   std::ifstream ifs(argv[1]);
   sm.Init(ifs);
-  auto smv = SmvFactoryType::Get();
+  auto& smv = SmvFactoryType::Get();
   if (RowCount(smv) != static_cast<size_t>(sm.row_count()) ||
       ColCount(smv) != static_cast<size_t>(sm.col_count())) {
     std::cerr << "Size not equal\n"
