@@ -119,3 +119,22 @@ TEST(DiagTest, SizeT3D) {
   EXPECT_EQ(-1, d_99_1(19, 5, 500));  // off by -1 in dim 0, middle dim 2
   EXPECT_EQ(-1, d_99_1(23, 6, 99999));  // max indexes (not on the diagonal)
 }
+
+TEST(DiagTest, MakeList) {
+  static int default_val = -1;
+  auto d = MakeList(DiagTag<unsigned, 5, 8>(), &default_val, 10, 40);
+  EXPECT_EQ(400, d.size());
+  EXPECT_EQ(5, d.block_size<0>());
+  EXPECT_EQ(8, d.block_size(1));
+}
+
+TEST(DiagTest, PolyVectorAppend) {
+  static int default_val = -1;
+  ListVector<ListBase<int, 3> > lv;
+
+  lv.Append(DiagTag<int, 1, 2, 4>(), &default_val, 2, 4, 8);
+  EXPECT_EQ(2, (static_cast<Diag<int, int, 1, 2, 4>&>(lv[0]).block_count()));
+
+  lv.Append(MakeList(DiagTag<int, 3, 3, 3>(), &default_val, 7, 7, 7));
+  EXPECT_EQ(3, (static_cast<Diag<int, int, 3, 3, 3>&>(lv[1]).block_count()));
+}

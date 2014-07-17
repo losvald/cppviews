@@ -51,7 +51,7 @@ class DiagDimScaler<Size, rhs, typename std::enable_if<rhs == 1>::type> {
 };
 
 // A multi-dimensional array wrapper with operator()(indexes...) indexing
-template<typename T, class BlockSize, BlockSize block_size,
+template<typename T, typename BlockSize, BlockSize block_size,
          BlockSize... block_sizes>
 class DiagBlock {
   using Nested = DiagBlock<T, BlockSize, block_sizes...>;
@@ -70,7 +70,7 @@ class DiagBlock {
   Type b_;
 };
 
-template<typename T, class BlockSize, BlockSize block_size>
+template<typename T, typename BlockSize, BlockSize block_size>
 class DiagBlock<T, BlockSize, block_size> {
  public:
   using NativeType = T[block_size];
@@ -108,14 +108,18 @@ constexpr bool SameSize(const Size1& size1, const Size2& size2,
 
 }  // namespace detail
 
-template<typename DataType, class BlockSize, BlockSize... block_sizes>
+// For the MakeList overload, we need to somehow encode the block sizes.
+template<typename BlockSize, BlockSize... block_sizes>
+struct DiagTag {};
+
+template<typename DataType, typename BlockSize, BlockSize... block_sizes>
 using Diag = List<cpp14::integer_sequence<BlockSize, block_sizes...>,
                   sizeof...(block_sizes),
                   kListOpVector,
                   DataType,
                   void>;
 
-template<typename DataType, unsigned dims, class BlockSize,
+template<typename DataType, unsigned dims, typename BlockSize,
          BlockSize... block_sizes>
 class List<cpp14::integer_sequence<BlockSize, block_sizes...>,
            dims,
@@ -144,6 +148,13 @@ class List<cpp14::integer_sequence<BlockSize, block_sizes...>,
       : ListBaseType((block_count * block_sizes)...),
         blocks_(block_count),
         default_value_(default_value) {}
+
+  // used by MakeList
+  template<typename... Args>
+  List(DiagTag<BlockSize, block_sizes...>, Args&&... args)
+      : List(std::forward<Args>(args)...) {}
+
+  friend List MakeList(List&& list) { return std::forward<List>(list); }
 
   template<typename... Indexes>
   DataType& operator()(const Indexes&... indexes) const {
@@ -207,6 +218,14 @@ class List<cpp14::integer_sequence<BlockSize, block_sizes...>,
   mutable std::vector<DiagBlockType> blocks_;
   DataType* default_value_;
 };
+
+template<typename DataType, typename BlockSize, BlockSize... block_sizes,
+         typename... Sizes>
+auto MakeList(DiagTag<BlockSize, block_sizes...>,
+              DataType* default_value, Sizes... sizes)
+#define V_LIST_TYPE Diag<DataType, BlockSize, block_sizes...>
+    -> V_LIST_TYPE { return V_LIST_TYPE(default_value, sizes...); }
+#undef V_LIST_TYPE
 
 }  // namespace v
 
