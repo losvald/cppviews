@@ -74,7 +74,7 @@ class List<
   kListOpVector,
 #define V_THIS_DATA_TYPE typename SublistType::DataType
   detail::ChainedListVector<chain_dim, V_THIS_DATA_TYPE, dims, SublistType>,
-  typename SublistType::DataType,
+  V_THIS_DATA_TYPE,
   typename std::enable_if<dims >= ListTraits<SublistType>::kDims>::type>
     : public ListBase<V_THIS_DATA_TYPE, dims>,
       protected detail::ChainHelper<SublistType> {
@@ -84,17 +84,20 @@ class List<
   for (unsigned dim = chain_dim + 1; dim < dims; ++dim) do body while (false);
 
   typedef ListBase<V_THIS_DATA_TYPE, dims> ListBaseType;
-#undef V_THIS_DATA_TYPE
-  typedef typename SublistType::DataType DataType;
-  typedef detail::ChainedListVector<chain_dim, DataType, dims, SublistType>
-  Container;
+
+  typedef detail::ChainedListVector<chain_dim, typename SublistType::DataType,
+                                    dims, SublistType> Container;
   struct Disabler {};  // used for SFINAE (to disable constructors)
 
  public:
   typedef std::array<size_t, dims - 1> LateralOffset;
   typedef std::pair<size_t, LateralOffset> LateralOffsetEntry;
   typedef std::pair<size_t, size_t> GapEntry;
-  typedef typename ListBaseType::SizeArray SizeArray;  // for convenience
+
+  // redeclared for convenience of the implementation
+  typedef V_THIS_DATA_TYPE DataType;
+  typedef typename ListBaseType::SizeArray SizeArray;
+#undef V_THIS_DATA_TYPE
 
   template<typename... Sizes>
   List(ListVector<SublistType>&& lists, DataType* default_value,
