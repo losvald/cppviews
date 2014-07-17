@@ -28,6 +28,9 @@ echo "Compiling ..."
 compile_cmd="$CC $CXXFLAGS -o '$bin' '$cpp'"
 echo "$compile_cmd"
 eval "$compile_cmd"
+exit_code=$?
+(( $exit_code != 0 )) && exit $exit_code
+
 echo "Running checker ..."
 run_cmd="'./$bin' $@ $src_dir/$name.mtx"
 echo "$run_cmd"
