@@ -172,8 +172,16 @@ class List<cpp14::integer_sequence<BlockSize, block_sizes...>,
   }
 
   template<unsigned dim>
-  constexpr BlockSize block_size() const { return kBlockSizes[dim]; }
-  BlockSize block_size(unsigned dim) const { return kBlockSizes[dim]; }
+  constexpr BlockSize block_size() const {
+    static constexpr BlockSize kBlockSizes[] = {block_sizes...};
+    return kBlockSizes[dim];
+  }
+
+  BlockSize block_size(unsigned dim) const {
+    static const BlockSize kBlockSizes[] = {block_sizes...};
+    return kBlockSizes[dim];
+  }
+
   size_t block_count() const { return blocks_.size(); }
 
  private:
@@ -212,8 +220,6 @@ class List<cpp14::integer_sequence<BlockSize, block_sizes...>,
         index - block_index * std::get<I>(dim_scalers()),
         (indexes - block_index * std::get<Is>(dim_scalers()))...);
   }
-
-  static constexpr BlockSize kBlockSizes[] = {block_sizes...};
 
   mutable std::vector<DiagBlockType> blocks_;
   DataType* default_value_;
