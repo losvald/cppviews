@@ -121,13 +121,14 @@ class ImmutableSkipList {
     return Position(ind - right, global_index - (right & left_size));
   }
 
-  inline size_t bucket_count() const { return bkt_cnt_; }
-
   // Returns the skip count for a specific tree node index.
   size_t skip_count(size_t index) const { return skip_cnts_[index]; }
 
   // Returns the maximum index for skip counts (min is 1).
   size_t skip_count_max_index() const { return skip_cnts_.size() - 1; }
+
+  size_t bucket_count() const { return bkt_cnt_; }
+  const BucketSizeGetter& bucket_size_getter() const { return size_getter_; }
 
 private:
   size_t bkt_cnt_;

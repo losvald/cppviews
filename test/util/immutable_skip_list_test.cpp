@@ -128,6 +128,7 @@ TEST(ImmutableSkipListTest, GetZeroSize) {
         default:
           ADD_FAILURE();
       }
+      return 0;  // silence the compiler warning
     }
   };
   ImmutableSkipList<BucketSizeGetter> sl(7);
@@ -141,6 +142,8 @@ TEST(ImmutableSkipListTest, GetZeroSize) {
   EXPECT_EQ(Pos(5, 0), sl.get(3));
   EXPECT_EQ(Pos(5, 1), sl.get(4));
 
-  // validate the position is the beginning of the past-the-last bucket
-  EXPECT_EQ(Pos(7, 0), sl.get(5));
+  // validate the position is past the last bucket
+  auto pos = sl.get(5);
+  EXPECT_EQ(0, pos.second);
+  EXPECT_GE(7, pos.first);
 }
