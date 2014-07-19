@@ -5,7 +5,10 @@
 
 #include "util/bit_twiddling.hpp"
 #include "util/intseq.hpp"
+
+#ifndef V_DIAG_NLIBDIVIDE
 #include "util/libdivide.h"
+#endif  // !defined(V_DIAG_NLIBDIVIDE)
 
 #include <tuple>
 #include <type_traits>
@@ -19,14 +22,25 @@ namespace detail {
 // For powers of 2, use bit shifts only (see the specialization below).
 // Finally, use specialization for scaling by 1 to avoid any overhead.
 template<typename Size, Size rhs, class Enable = void>
-class DiagDimScaler : protected libdivide::divider<Size> {
+class DiagDimScaler
+#ifndef V_DIAG_NLIBDIVIDE
+    : protected libdivide::divider<Size>
+#endif  // !defined(V_DIAG_NLIBDIVIDE)
+{
  public:
+#ifndef V_DIAG_NLIBDIVIDE
   DiagDimScaler() : libdivide::divider<Size>(rhs) {}
+#endif  // !defined(V_DIAG_NLIBDIVIDE)
+
   friend Size operator*(const Size& lhs, const DiagDimScaler& s) {
     return lhs * rhs;
   }
   friend Size operator/(const Size& lhs, const DiagDimScaler& s) {
+#ifndef V_DIAG_NLIBDIVIDE
     return lhs / static_cast<libdivide::divider<Size> >(s);
+#else
+    return lhs / rhs;
+#endif  // !defined(V_DIAG_NLIBDIVIDE)
   }
 };
 
