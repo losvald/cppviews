@@ -110,10 +110,10 @@ class List<
         nesting_offsets_(InsertDummies(lists_, std::move(nesting_offsets))),
         fwd_skip_list_(nesting_offsets_.size() - 1, &nesting_offsets_) {}
 
-  List(ListVector<SublistType>&& lists,
-       DataType* default_value = nullptr,
-       const std::vector<LateralOffsetEntry>& lateral_offsets = {},
-       const std::vector<GapEntry>& sorted_gaps = {})
+  explicit List(ListVector<SublistType>&& lists,
+                DataType* default_value = nullptr,
+                const std::vector<LateralOffsetEntry>& lateral_offsets = {},
+                const std::vector<GapEntry>& sorted_gaps = {})
       : lists_(std::move(lists)),
         default_value_(default_value),
         nesting_offsets_(lists_.size()),
@@ -164,6 +164,17 @@ class List<
                                               &nesting_offsets_);
   }
 
+  // List(const List&) = delete;  // redundant since ListVector is not copyable
+  List(List&& src)
+      : ListBaseType(std::move(src)),
+        lists_(std::move(src.lists_)),
+        default_value_(src.default_value_),
+        nesting_offsets_(std::move(src.nesting_offsets_)),
+        fwd_skip_list_(std::move(src.fwd_skip_list_)) {
+    // the size getter points to nesting_offsets_ that is moved, so update it
+    fwd_skip_list_.bucket_size_getter().o_ = &nesting_offsets_;
+  }
+
   // used by MakeList
   template<typename... Args>
   List(ChainTag<chain_dim>, Args&&... args)
@@ -211,8 +222,8 @@ class List<
     size_t operator()(size_t index) const {
       return (*o_)[index + 1][chain_dim] - (*o_)[index][chain_dim];
     }
-   private:
-    const std::vector<List::SizeArray>* o_;
+
+    mutable const std::vector<List::SizeArray>* o_;
   };
 
   typedef ImmutableSkipList<NonLateralBucketSizeGetter> SkipListType;

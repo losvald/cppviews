@@ -73,20 +73,20 @@ TEST(ChainTest, PolyConst) {
   //         +---+
   const int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
   typedef ListBase<const int, 2> ListBaseType;
-  auto&& c2_1_lists_factory = [&]() {
-    return std::move(ListVector<ListBaseType>()
-     .Append([&](unsigned col, unsigned row) {
-          return digits + (1 + row) * (row + col == 2);
-        }, 3, 3)
-      .Append([&](unsigned col, unsigned row) {
-          return digits + (4 + col) * (row == col % 2);
-        }, 4, 2)
-      .Append([&](unsigned col, unsigned row) {
-          return digits + 8 * (row == 1);
-        }, 1, 2)
-      .Append([&](unsigned col, unsigned row) {
-          return digits + 9 * (row == 1 && col == 0);
-        }, 2, 2));
+  auto c2_1_lists_factory = [&]() {
+    return ListVector<ListBaseType>()
+    .Append([&](unsigned col, unsigned row) {
+        return digits + (1 + row) * (row + col == 2);
+      }, 3, 3)
+    .Append([&](unsigned col, unsigned row) {
+        return digits + (4 + col) * (row == col % 2);
+      }, 4, 2)
+    .Append([&](unsigned col, unsigned row) {
+        return digits + 8 * (row == 1);
+      }, 1, 2)
+    .Append([&](unsigned col, unsigned row) {
+        return digits + 9 * (row == 1 && col == 0);
+      }, 2, 2);
   };
   Chain<ListBaseType, 1> c2_1(
       c2_1_lists_factory(),
@@ -172,26 +172,29 @@ TEST(ChainTest, NestingMakeList) {
   ListVector<ListBase<int, 2> > lists_1;
   lists_1.Append([&](unsigned col, unsigned row) {
       return digits + 1;
-    }, 3, 3);
+    }, 1, 3);
   lists_root.Append(ChainTag<1>(),
                     std::move(lists_1),
                     &digits[9],
                     ChainOffsetVector<2>({{0, 2}}), // {} cannot be deduced !
                     1, 5);
 
-  lists_root.Append(MakeList(
+  auto l = MakeList(
       ChainTag<1>(),
       ListVector<ListBase<int, 2> >()
       .Append([&](unsigned col, unsigned row) { return digits + 2; }, 1, 1)
       .Append([&](unsigned col, unsigned row) { return digits + 3; }, 1, 1),
       &digits[8],
-      {{0, 0}, {1, 0}},  // OK, since MakeList is called explicitly
-      1, 2));
+      {{0, 0}, {0, 1}},  // OK, since MakeList is called explicitly
+      1, 2);
+  lists_root.Append(std::move(l));
 
   lists_root.Append(Chain<ListBase<int, 2>, 0>(
       ListVector<ListBase<int, 2> >()  // need to repeat the nested type
       .Append([&](unsigned col, unsigned row) { return digits + 4; }, 1, 1),
-      &digits[7], {{0, 0}}, 1, 4));
+      &digits[7],
+    {{0, 0}},
+      1, 4));
 
   Chain<ListBase<int, 2>, 1> nested(
       std::move(lists_root),
@@ -208,9 +211,8 @@ TEST(ChainTest, NestingMakeList) {
   EXPECT_EQ(1, nested.get({0, 2}));
   EXPECT_EQ(1, nested.get({0, 4}));
 
-  // XXX: these crashes - something buggy with 2nd and 3rd way of appending
-  // EXPECT_EQ(2, nested.get({0, 5}));
-  // EXPECT_EQ(3, nested.get({0, 6}));
-  // EXPECT_EQ(4, nested.get({0, 7}));
-  // EXPECT_EQ(4, nested.get({0, 10}));
+  EXPECT_EQ(2, nested.get({0, 5}));
+  EXPECT_EQ(3, nested.get({0, 6}));
+  EXPECT_EQ(4, nested.get({0, 7}));
+  EXPECT_EQ(7, nested.get({0, 10}));
 }
