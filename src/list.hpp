@@ -412,10 +412,7 @@ class List<void, dims, kListNoFlags, void, T> : public ListBase<T, dims> {
   typedef list_detail::DummyListIter<T> Iterator;
   typedef list_detail::DummyListIter<const T> ConstIterator;
 
-  List() {
-    // TODO: use metaprogramming to initialize sizes to all 0 at compile time
-    ListBaseType::sizes_.fill(0);
-  }
+  List() : List(cpp14::make_index_sequence<dims>()) {}
   void ShrinkToFirst() override {}
 
   T& get(const typename ListBaseType::SizeArray& indexes) const override {
@@ -441,6 +438,11 @@ class List<void, dims, kListNoFlags, void, T> : public ListBase<T, dims> {
   V_THIS_DEF_ITER_ACCESSORS(l)
 #undef V_THIS_DEF_ITER_ACCESSOR
 #undef V_THIS_DEF_ITER_ACCESSORS
+
+ private:
+  template<size_t... Is>
+  List(cpp14::index_sequence<Is...>)
+  : ListBaseType(list_detail::ZeroSize<decltype(Is)>()...) {}
 };
 
 // specialization for 1D lists
