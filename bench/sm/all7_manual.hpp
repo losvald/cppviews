@@ -1,14 +1,14 @@
-#ifndef CPPVIEWS_BENCH_SM_3X5ALL7_HPP_
-#define CPPVIEWS_BENCH_SM_3X5ALL7_HPP_
+#ifndef CPPVIEWS_BENCH_SM_ALL7_MANUAL_HPP_
+#define CPPVIEWS_BENCH_SM_ALL7_MANUAL_HPP_
 
 #include "../smv_factory.hpp"
 
-using all7 = SameValuesMatrix<int, 7>;
+using all7_manual = SameValuesMatrix<int, 7>;
 
 template<>
-class SmvFactory<all7> {
+class SmvFactory<all7_manual> {
  public:
-  typedef all7 ListType;
+  typedef all7_manual ListType;
   typedef unsigned CoordType;
 
   static const ListType& Get() {
@@ -21,4 +21,4 @@ class SmvFactory<all7> {
   }
 };
 
-#endif  /* CPPVIEWS_BENCH_SM_3X5ALL7_HPP_ */
+#endif  /* CPPVIEWS_BENCH_SM_ALL7_MANUAL_HPP_ */

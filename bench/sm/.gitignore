@@ -3,4 +3,4 @@
 /*.hpp
 
 # Allow some examples which are not auto-generated
-!/all7.hpp
+!/*_manual.hpp

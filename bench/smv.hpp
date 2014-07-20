@@ -40,4 +40,10 @@ size_t RowCount(const List& smv) { return smv.sizes()[0]; }
 template<class List>
 size_t ColCount(const List& smv) { return smv.sizes()[1]; }
 
+template<typename T>
+T* ZeroPtr() {
+  static T zero{};
+  return &zero;
+}
+
 #endif  /* CPPVIEWS_BENCH_SMV_HPP_ */
