@@ -185,6 +185,12 @@ class List<
     return std::forward<List>(List(std::move(list)));
   }
 
+  template<typename... Indexes>
+  DataType& operator()(const Indexes&... indexes) const {
+    // TODO: terribly inefficient
+    return get(SizeArray{static_cast<size_t>(indexes)...});
+  }
+
   void ShrinkToFirst() override {
     ListBaseType::ShrinkToFirst();
     lists_.Erase(++lists_.begin(), lists_.end());
