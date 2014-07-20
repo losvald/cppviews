@@ -134,35 +134,42 @@ TEST(ChainTest, PolyConst) {
 
 TEST(ChainTest, Poly1DLeadingGap) {
   const char* value = "value";
+  const char* default_value = nullptr;
   typedef ListBase<const char*, 1> ListBaseType;
   Chain<ListBaseType, 0> c1(
       ListVector<ListBaseType>()
       .Append([&](unsigned) {
           return &value;
         }, 1),
-      nullptr,
+      &default_value,
       {},
       {{0, 3}});
   EXPECT_EQ(4, c1.sizes().front());
   EXPECT_EQ(3, c1.nesting_offset(0).front());
-  EXPECT_EQ("value", c1.get({3}));
+  EXPECT_EQ(value, c1.get({3}));
+  EXPECT_EQ(default_value, c1.get({0}));
+  EXPECT_EQ(default_value, c1.get({1}));
+  EXPECT_EQ(default_value, c1.get({2}));
 }
 
 TEST(ChainTest, PolyTrailingGap) {
   const char* value = "value";
+  const char* default_value = nullptr;
   typedef ListBase<const char*, 3> ListBaseType;
   Chain<ListBaseType, 1> c3_1(
       ListVector<ListBaseType>()
       .Append([&](unsigned, unsigned, unsigned) {
           return &value;
         }, 1, 1, 1),
-      nullptr,
+      &default_value,
       {},
       {{1, 2}});
   typedef ListBaseType::SizeArray SizeArray;
   EXPECT_EQ((SizeArray({1, 3, 1})), c3_1.sizes());
   EXPECT_EQ((SizeArray({0, 0, 0})), c3_1.nesting_offset(0));
-  EXPECT_EQ("value", c3_1.get({0, 0, 0}));
+  EXPECT_EQ(value, c3_1.get({0, 0, 0}));
+  EXPECT_EQ(default_value, c3_1.get({0, 1, 0}));
+  EXPECT_EQ(default_value, c3_1.get({0, 2, 0}));
 }
 
 TEST(ChainTest, NestingMakeList) {

@@ -107,7 +107,8 @@ class List<
       : ListBaseType(size, sizes...),
         lists_(std::move(lists)),
         default_value_(default_value),
-        nesting_offsets_(InsertDummies(lists_, std::move(nesting_offsets))),
+        nesting_offsets_(InsertDummies(lists_, ListBaseType::sizes_,
+                                       std::move(nesting_offsets))),
         fwd_skip_list_(nesting_offsets_.size() - 1, &nesting_offsets_) {}
 
   explicit List(ListVector<SublistType>&& lists,
@@ -159,7 +160,7 @@ class List<
 
     // TODO: resizing nesting_offsets_ twice and moving skip list isn't ideal,
     // but it makes the initialization simple
-    InsertDummies(lists_, std::move(nesting_offsets_));
+    InsertDummies(lists_, ListBaseType::sizes_, std::move(nesting_offsets_));
     fwd_skip_list_ = decltype(fwd_skip_list_)(nesting_offsets_.size() - 1,
                                               &nesting_offsets_);
   }
@@ -253,23 +254,19 @@ class List<
   }
 
   static std::vector<SizeArray>&&
-  InsertDummies(Container& lists_, std::vector<SizeArray>&& nesting_offsets_) {
-    nesting_offsets_.reserve(nesting_offsets_.size() + 2);
-    nesting_offsets_.emplace(nesting_offsets_.begin());
-    nesting_offsets_.front().fill(0);
-    if (lists_.empty())
-      nesting_offsets_.emplace_back();
-    else {
-      // ref to second last element will stay valid because of reserve
-      const auto& last_nesting_offset = nesting_offsets_.back();
-      nesting_offsets_.emplace_back();
-      nesting_offsets_.back()[chain_dim] = last_nesting_offset[chain_dim] +
-          lists_.back().sizes()[chain_dim];
-
+  InsertDummies(Container& lists_, const List::SizeArray& sizes,
+                std::vector<SizeArray>&& nesting_offsets_) {
+    if (!lists_.empty()) {
       detail::ChainHelper<SublistType>::template InsertDummies(&lists_);
       lists_.Shrink();
     }
-    SetLateralOffset({}, &nesting_offsets_.back());
+
+    nesting_offsets_.reserve(nesting_offsets_.size() + 2);
+    nesting_offsets_.emplace(nesting_offsets_.begin());
+    nesting_offsets_.front().fill(0);
+    nesting_offsets_.emplace_back();
+    nesting_offsets_.back().fill(0);
+    nesting_offsets_.back()[chain_dim] = sizes[chain_dim];
     nesting_offsets_.shrink_to_fit();
     return std::move(nesting_offsets_);
   }
