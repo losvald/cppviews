@@ -6,12 +6,14 @@
   "last_row": 22,
   "last_col": 62,
   "_new01": {
-    "type": 0,
+    "type": 4,
     "direction": 1,
     "first_row": 0,
     "first_col": 0,
     "last_row": 22,
-    "last_col": 22
+    "last_col": 22,
+    "block_rows": 1,
+    "block_cols": 1
   },
   "_new06": {
     "type": 0,

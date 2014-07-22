@@ -8,16 +8,16 @@
 #include "../../src/diag.hpp"
 
 class p0040_cdd_manual
-#define SM_BASE_TYPE \
-    v::Chain<v::ListBase<int, 2>, 1>  // avoid type repetition
+#define SM_BASE_TYPE                                            \
+  v::Chain<v::ListBase<int, 2>, 1>  // avoid type repetition
     : public SM_BASE_TYPE {
   typedef SM_BASE_TYPE BaseType;
 #undef SM_BASE_TYPE
 
-public:
+ public:
   p0040_cdd_manual() : BaseType(
       v::ChainTag<1>(), v::ListVector<v::ListBase<int, 2> >()
-      .Append([]{
+      .Append([] {
           v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 23, 23);
           // Here, 23 lines would be generated,
           //    v(0, 0) = 1;
@@ -48,7 +48,7 @@ public:
             }())
           .Append(
               v::ChainTag<1>(), v::ListVector<v::ListBase<int, 2> >()
-              .Append([]{
+              .Append([] {
                   v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 3, 3);
                   v(0, 0) = -1669;
                   v(1, 1) = -1669;
@@ -56,55 +56,55 @@ public:
                   return v;
                 }())
               // the rest of the Diag views have the same structure
-              .Append([]{
+              .Append([] {
                   v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 3, 3);
                   for (unsigned i = v.sizes()[0]; i--; )
                     v(i, i) = -2191;
                   return v;
                 }())
-              .Append([]{
+              .Append([] {
                   v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 3, 3);
                   for (unsigned i = v.sizes()[0]; i--; )
                     v(i, i) = -1553;
                   return v;
                 }())
-              .Append([]{
+              .Append([] {
                   v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 3, 3);
                   for (unsigned i = v.sizes()[0]; i--; )
                     v(i, i) = -1829;
                   return v;
                 }())
-              .Append([]{
+              .Append([] {
                   v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 3, 3);
                   for (unsigned i = v.sizes()[0]; i--; )
                     v(i, i) = -1772;
                   return v;
                 }())
-              .Append([]{
+              .Append([] {
                   v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 3, 3);
                   for (unsigned i = v.sizes()[0]; i--; )
                     v(i, i) = -1665;
                   return v;
                 }())
-              .Append([]{
+              .Append([] {
                   v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 3, 3);
                   for (unsigned i = v.sizes()[0]; i--; )
                     v(i, i) = -2220;
                   return v;
                 }())
-              .Append([]{
+              .Append([] {
                   v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 3, 3);
                   for (unsigned i = v.sizes()[0]; i--; )
                     v(i, i) = -1634;
                   return v;
                 }())
-              .Append([]{
+              .Append([] {
                   v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 3, 3);
                   for (unsigned i = v.sizes()[0]; i--; )
                     v(i, i) = -2211;
                   return v;
                 }())
-              .Append([]{
+              .Append([] {
                   v::Diag<int, unsigned, 1, 1> v(ZeroPtr<int>(), 3, 3);
                   for (unsigned i = v.sizes()[0]; i--; )
                     v(i, i) = -2142;
@@ -136,4 +136,4 @@ public:
   }
 };
 
-#endif  /* CPPVIEWS_BENCH_SM_P0040_CDD_MANUAL_HPP_ */
+#endif  // CPPVIEWS_BENCH_SM_P0040_CDD_MANUAL_HPP_
