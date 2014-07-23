@@ -1,7 +1,7 @@
-#ifndef CPPVIEWS_BENCH_SM_ALL7_MANUAL_HPP_
-#define CPPVIEWS_BENCH_SM_ALL7_MANUAL_HPP_
+#ifndef CPPVIEWS_BENCH_SM_VIEW_ALL7_MANUAL_HPP_
+#define CPPVIEWS_BENCH_SM_VIEW_ALL7_MANUAL_HPP_
 
-#include "../smv_factory.hpp"
+#include "../../smv_factory.hpp"
 
 using all7_manual = SameValuesMatrix<int, 7>;
 
@@ -21,4 +21,4 @@ class SmvFactory<all7_manual> {
   }
 };
 
-#endif  /* CPPVIEWS_BENCH_SM_ALL7_MANUAL_HPP_ */
+#endif  /* CPPVIEWS_BENCH_SM_VIEW_ALL7_MANUAL_HPP_ */

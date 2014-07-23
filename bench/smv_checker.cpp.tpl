@@ -7,7 +7,7 @@
 // #define TEST_SMV_CHECKER  // uncomment for a quick test
 #ifdef TEST_SMV_CHECKER
 
-#include "../../bench/smv_factory.hpp"
+#include "../../../bench/smv_factory.hpp"
 
 // // A quick and dirty alternative to the below:
 // struct ThreeByFiveAllSevens : SameValuesMatrix<int, 7> {

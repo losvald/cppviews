@@ -9,6 +9,7 @@
 #include <iostream>
 #include <vector>
 
+#include <cassert>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
@@ -144,17 +145,17 @@ Indexes Generate(const JsonValue& val, const SM& sm,
 void Generate(const std::string& name, const rapidjson::Document& doc,
               const SM& sm, const std::string& coord_type, std::ostream* os) {
   using namespace std;
-  string guard = "CPPVIEWS_BENCH_SM_" + name + "_HPP_";
+  string guard = "CPPVIEWS_BENCH_SM_VIEW_" + name + "_HPP_";
   transform(guard.begin(), guard.end(), guard.begin(), ::toupper);
 
   *os << "#ifndef " << guard  << kLF
       << "#define " << guard << kLF
       << kLF
-      << R"(#include "../smv_factory.hpp")" << kLF
-      << R"(#include "../gui/sm/view_type.hpp")" << kLF
+      << R"(#include "../../smv_factory.hpp")" << kLF
+      << R"(#include "../../gui/sm/view_type.hpp")" << kLF
       << kLF
-      << R"(#include "../../src/chain.hpp")" << kLF
-      << R"(#include "../../src/diag.hpp")" << kLF
+      << R"(#include "../../../src/chain.hpp")" << kLF
+      << R"(#include "../../../src/diag.hpp")" << kLF
       << kLF
       << "class " << name << kLF
       << R"(#define SM_BASE_TYPE \)" << kLF
@@ -185,12 +186,13 @@ int main(int argc, char* argv[]) {
   using namespace std;
   cout.sync_with_stdio(false);
 
-  if (argc <= 1) {
-    cerr << "Usage: " << argv[0] << " SMVD_FILE [COORD_TYPE]" << endl;
+  if (argc <= 2) {
+    cerr << "Usage: " << argv[0] << " SMVD_FILE MTX_FILE [COORD_TYPE]" << endl;
     return 1;
   }
   const string json_path(argv[1]);
-  const string coord_type(argc > 2 ? argv[2] : "int"); // TODO: parse from mtx
+  const string mtx_path(argv[2]);
+  const string coord_type(argc > 3 ? argv[3] : "int"); // TODO: parse from mtx
 
   const string basename_path(json_path.substr(0, json_path.rfind('.')));
   const string name = basename_path.substr(
@@ -210,7 +212,7 @@ int main(int argc, char* argv[]) {
 
   SM sm;
   {
-    ifstream mtx_stream((basename_path + ".mtx").c_str());
+    ifstream mtx_stream(mtx_path.c_str());
     if (!mtx_stream) {
       cerr << "Error opening SMVD file: " << strerror(errno) << endl;
       return errno;
@@ -218,6 +220,7 @@ int main(int argc, char* argv[]) {
     sm.Init(mtx_stream);
   }
 
+  assert(0);
   Generate(name, doc, sm, coord_type, &cout);
   return 0;
 }

@@ -1,6 +1,6 @@
-/*_checker
-/*_checker.cpp
-/*.hpp
+/*/*_checker
+/*/*_checker.cpp
+/*/*.hpp
 
 # Allow some examples which are not auto-generated
-!/*_manual.hpp
+!/*/*_manual.hpp
