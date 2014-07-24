@@ -1,11 +1,11 @@
 #ifndef CPPVIEWS_BENCH_SM_VIEW_P0040_CDD_MANUAL_HPP_
 #define CPPVIEWS_BENCH_SM_VIEW_P0040_CDD_MANUAL_HPP_
 
-#include "../smv_factory.hpp"
-#include "../gui/sm/view_type.hpp"
+#include "../../smv_factory.hpp"
+#include "../../gui/sm/view_type.hpp"
 
-#include "../../src/chain.hpp"
-#include "../../src/diag.hpp"
+#include "../../../src/chain.hpp"
+#include "../../../src/diag.hpp"
 
 class p0040_cdd_manual
 #define SM_BASE_TYPE                                            \

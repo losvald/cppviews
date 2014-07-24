@@ -1,4 +1,6 @@
-#include "smv_factory.hpp"
+// The default SM type to be benchmarked is provided via smv_run.hpp
+// but it can be overriden through compiler flags (see smv_run.hpp)
+#include "smv_run.hpp"
 
 #include "util/program_options.hpp"
 
@@ -13,8 +15,6 @@
 #include <string>
 #include <utility>
 
-// XXX: SM type to be benchmarked is determined by the generatable smv_run.hpp
-#include "smv_run.hpp"
 typedef SmvFactory<SM_NAME> SmvFactoryType;
 typedef SmvFactoryType::ListType Smv;
 typedef SmvFactoryType::CoordType Coord;
@@ -50,10 +50,7 @@ struct SmvRunOptions : public ProgramOptions<> {
         seed('s', "seed", "Sets a positive integer to be used as a seed", this),
         access_count('c', "access-count",
                      "Sets the total number of accesses the sparse matrix view",
-                     this)
-      // , view("view", "Benchmark View (default)", this)
-      // , stl_map("stl-map", "Benchmark STL map", this)
-  {}
+                     this) {}
 
   void PrintUsage(const char* argv0, std::ostream* os) const override {
     *os << "Usage: " << argv0 << " <bench>" << std::endl;
@@ -75,10 +72,6 @@ struct SmvRunOptions : public ProgramOptions<> {
   Option<> all_runs;
   Option<unsigned> seed;
 
-  // // choices for benchmark to be run (mutually exclusive)
-  // Option<> view;
-  // Option<> stl_map;
-
   Option<size_t> access_count;
 
  protected:
@@ -97,17 +90,6 @@ struct SmvRunOptions : public ProgramOptions<> {
     SetIfNot(1, &iter_count);
     SetIfNot(1, &repeat_count);
     SetIfNot(false, &all_runs);
-
-    // // set mutually exclusive group with "view" as default
-    // SetIfNot(true, &view);
-    // Option<>* sm_type_options[] = {&view, &stl_map};
-    // unsigned set_count = 0;
-    // for (auto sm_type_option : sm_type_options) {
-    //   SetIfNot(false, sm_type_option);
-    //   set_count += (*sm_type_option)();
-    // }
-    // if (set_count > 1)
-    //   throw Exception("Cannot run more than one benchmark");
   }
 
  private:
@@ -162,7 +144,7 @@ struct PermutedRandomAccess : public Benchmark {
   }
   void Init() override {
     const size_t access_count = gPO.access_count.count()
-        ? gPO.access_count() : 0;
+        ? gPO.access_count() : smv_.size();
 
     coord_pairs_.clear();
     coord_pairs_.reserve(access_count);
@@ -187,13 +169,6 @@ struct PermutedRandomAccess : public Benchmark {
   std::vector<CoordPair> coord_pairs_;
 };
 
-Benchmark* CreatePermutedRandomAccess() {
-  // if (gPO.stl_map()) {
-  //   return new PermutedRandomAccess<StlMapType>;
-  // }
-  return new PermutedRandomAccess;
-}
-
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -211,7 +186,7 @@ int main(int argc, char* argv[]) {
   }
 
   map<string, function<Benchmark*()> > bench_creators = {
-    {"pra", CreatePermutedRandomAccess},
+    {"pra", [] { return new PermutedRandomAccess; } },
   };
 
   if (gPO.list()) {
