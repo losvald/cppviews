@@ -1,5 +1,7 @@
 /*/*_checker
 /*/*_checker.cpp
+/*/*_runner
+/*/*_runner.cpp
 /*/*.hpp
 
 # Allow some examples which are not auto-generated
