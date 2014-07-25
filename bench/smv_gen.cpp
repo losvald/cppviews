@@ -51,10 +51,15 @@ std::string GetNestingType(const JsonValue& val,
 
 typedef SparseMatrix<std::string> SM;
 
-class Indexes {
- public:
+struct Indexes {
   Indexes(unsigned row, unsigned col) : row(row), col(col) {}
   unsigned row, col;
+};
+
+struct Assignment : public Indexes {
+  Assignment(unsigned row, unsigned col, const std::string& val)
+      : Indexes(row, col), val(val) {}
+  std::string val;
 };
 
 const char* kIndent = "  ";
@@ -64,6 +69,22 @@ void Indent(std::string* indent) { (*indent).append(kIndent); }
 void Unindent(std::string* indent) {
   indent->resize(indent->size() - strlen(kIndent));
 }
+
+bool AllSame(const SM& sm, const Indexes& first, const Indexes& last,
+             std::string* unique_val) {
+  unique_val->clear();
+  for (auto row = first.row; row <= last.row; ++row) {
+    for (auto cols = sm.nonzero_col_range(row, first.col, last.col + 1);
+         cols.first != cols.second; ++cols.first) {
+      const std::string& val = sm(row, *cols.first);
+      if (unique_val->empty()) *unique_val = val;
+      else if (*unique_val != val) return false;
+    }
+  }
+  return true;
+}
+
+std::vector<Assignment> gAsgns;
 
 Indexes Generate(const JsonValue& val, const SM& sm,
                  const std::string& coord_type, std::string* indent,
@@ -85,25 +106,33 @@ Indexes Generate(const JsonValue& val, const SM& sm,
           "v::ListBase<" << coord_type << ", 2>" <<  // TODO: find common type
           " >()" << kLF;
       break;
-    case kViewTypeDiag:
+    case kViewTypeDiag: {
       *os << "[] {" << kLF
           << *indent << "v::Diag<" << coord_type << ", unsigned" <<
           ", " << val["block_rows"].GetUint() <<
           ", " << val["block_cols"].GetUint() <<
           "> v(ZeroPtr<" << coord_type << ">()" <<
           ", " << size.row << ", " << size.col << ");" << kLF;
-      for (auto row = first.row; row <= last.row; ++row) {
-        for (auto cols = sm.nonzero_col_range(row, first.col, last.col + 1);
-             cols.first != cols.second; ++cols.first)
-          *os << *indent << "v(" << row - first.row << ", " <<
-              *cols.first - first.col << ") = " << sm(row, *cols.first) <<
-              ";" << kLF;
+
+      // check if all values are same (to avoid huge compilation time)
+      std::string unique_val;
+      if (AllSame(sm, first, last, &unique_val)) {
+        *os << *indent << "for (unsigned i = 0; i < " << size.row <<
+            "; ++i)" << kLF
+            << *indent << kIndent << "v(i, i) = " << unique_val << ";" << kLF;
+      } else {
+        for (auto row = first.row; row <= last.row; ++row) {
+          for (auto cols = sm.nonzero_col_range(row, first.col, last.col + 1);
+               cols.first != cols.second; ++cols.first)
+            gAsgns.emplace_back(row, *cols.first, sm(row, *cols.first));
+        }
       }
       *os << *indent << "return v;" << kLF;
       Unindent(indent);
       *os << *indent << "}()";
       Indent(indent);
       return first;
+    }
     default:
       throw std::runtime_error("unsupported view type");
   }
@@ -173,8 +202,42 @@ void Generate(const std::string& name, const rapidjson::Document& doc,
   Generate(doc, sm, coord_type, &indent, os);
   Unindent(&indent), Unindent(&indent);
 
-  *os << ") {" << kLF
-      << kIndent << "}" << kLF
+  *os << ") {" << kLF;
+  Indent(&indent);
+
+  // // For some reason, this results in an internal compiler bug + very slow
+  // for (const auto& asgn : gAsgns) {
+  //   *os << indent << "(*this)(" << asgn.row << ", " << asgn.col << ") = " <<
+  //       asgn.val << ";" << kLF;
+  // }
+
+  *os << indent << "static const " << coord_type << " data[] = {" << kLF;
+  Indent(&indent);
+  for (const auto& asgn : gAsgns)
+    *os << indent << asgn.val << ',' << kLF;
+  Unindent(&indent);
+  *os << indent << "};" << kLF;
+
+  *os << indent << "static const " << coord_type << " rows[] = {" << kLF;
+  Indent(&indent);
+  for (const auto& asgn : gAsgns)
+    *os << indent << asgn.row << ',' << kLF;
+  Unindent(&indent);
+  *os << indent << "};" << kLF;
+
+  *os << indent << "static const " << coord_type << " cols[] = {" << kLF;
+  Indent(&indent);
+  for (const auto& asgn : gAsgns)
+    *os << indent << asgn.col << ',' << kLF;
+  Unindent(&indent);
+  *os << indent << "};" << kLF;
+
+  *os << indent << kLF
+      << indent << "for (size_t i = 0; i < " << gAsgns.size() << "; ++i)" << kLF
+      << indent << kIndent << "(*this)(rows[i], cols[i]) = data[i];" << kLF;
+
+  Unindent(&indent);
+  *os << indent << "}" << kLF
       << "};" << kLF
       << kLF
       << "#endif  // " << guard << kLF;
