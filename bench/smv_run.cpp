@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <exception>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -128,7 +129,7 @@ struct Benchmark {
     if (gPO.verbosity())
       std::cerr << "Computed benchmark hash: " << hash_ << std::endl;
   }
-  virtual void Init() = 0;
+  virtual void Init() {}
   virtual void Run() = 0;
  protected:
   size_t hash_ = 1;  // used to prevent optimizations
@@ -169,6 +170,41 @@ struct PermutedRandomAccess : public Benchmark {
   std::vector<CoordPair> coord_pairs_;
 };
 
+struct SampledRandomAccess : public Benchmark {
+  SampledRandomAccess() {
+    if (!gPO.access_count.count())
+      throw std::invalid_argument("Missing --access-count");
+  }
+
+  // void Init() override {
+  //   coord_pairs_.clear();
+  //   coord_pairs_.reserve(access_count);
+  //   while (coord_pairs_.size() < access_count)
+  //     for (Coord row = RowCount(smv_); row--; )
+  //       for (Coord col = ColCount(smv_); col--; )
+  //         coord_pairs_.emplace_back(row, col);
+  //   std::shuffle(coord_pairs_.begin(), coord_pairs_.end(), gen_);
+  // }
+
+  void Run() override {
+    std::uniform_int_distribution<unsigned> row_dis(0, RowCount(smv_) - 1);
+    std::uniform_int_distribution<unsigned> col_dis(0, ColCount(smv_) - 1);
+    // for (const auto& cp : coord_pairs_) {
+    for (size_t access_count = gPO.access_count(); access_count--; ) {
+      auto row = row_dis(gen_), col = col_dis(gen_);
+      if (!gPO.dry_run())
+        hash_ += smv_(row, col);
+      else
+        hash_ += row + col;
+    }
+  }
+
+ private:
+  // typedef std::pair<Coord, Coord> CoordPair;
+  // std::vector<CoordPair> coord_pairs_;
+};
+
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -187,6 +223,7 @@ int main(int argc, char* argv[]) {
 
   map<string, function<Benchmark*()> > bench_creators = {
     {"pra", [] { return new PermutedRandomAccess; } },
+    {"sra", [] { return new SampledRandomAccess; } },
   };
 
   if (gPO.list()) {
