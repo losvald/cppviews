@@ -31,7 +31,7 @@ unsigned ToChainDim(const JsonValue& direction_val) {
 }
 
 std::string GetNestingType(const JsonValue& val,
-                           const std::string& coord_type) {
+                           const std::string& data_type) {
   // TODO: determine common type by unification of nested view types
   // SMV_JSON_FOR(m, val) {
   //   const char* name = m->name.GetString();
@@ -42,7 +42,7 @@ std::string GetNestingType(const JsonValue& val,
   ViewType type = static_cast<ViewType>(val["type"].GetInt());
   switch (type) {
     case kViewTypeChain:
-      return "v::Chain<v::ListBase<" + coord_type + ", 2>, " +
+      return "v::Chain<v::ListBase<" + data_type + ", 2>, " +
           std::to_string(ToChainDim(val["direction"])) + ">";
     default:
       throw std::invalid_argument("not a nesting type");
@@ -84,11 +84,9 @@ bool AllSame(const SM& sm, const Indexes& first, const Indexes& last,
   return true;
 }
 
-std::vector<Assignment> gAsgns;
-
 Indexes Generate(const JsonValue& val, const SM& sm,
-                 const std::string& coord_type, std::string* indent,
-                 std::ostream* os) {
+                 const std::string& data_type, std::vector<Assignment>* asgns,
+                 std::string* indent, std::ostream* os) {
   const Indexes first(val["first_row"].GetUint(), val["first_col"].GetUint());
   const Indexes last(val["last_row"].GetUint(), val["last_col"].GetUint());
   const Indexes min(std::min(first.row, last.row),
@@ -103,15 +101,15 @@ Indexes Generate(const JsonValue& val, const SM& sm,
           << *indent << "v::ChainTag<" <<
           ToChainDim(val["direction"]) <<
           ">(), v::ListVector<" <<
-          "v::ListBase<" << coord_type << ", 2>" <<  // TODO: find common type
+          "v::ListBase<" << data_type << ", 2>" <<  // TODO: find common type
           " >()" << kLF;
       break;
     case kViewTypeDiag: {
       *os << "[] {" << kLF
-          << *indent << "v::Diag<" << coord_type << ", unsigned" <<
+          << *indent << "v::Diag<" << data_type << ", unsigned" <<
           ", " << val["block_rows"].GetUint() <<
           ", " << val["block_cols"].GetUint() <<
-          "> v(ZeroPtr<" << coord_type << ">()" <<
+          "> v(ZeroPtr<" << data_type << ">()" <<
           ", " << size.row << ", " << size.col << ");" << kLF;
 
       // check if all values are same (to avoid huge compilation time)
@@ -124,7 +122,7 @@ Indexes Generate(const JsonValue& val, const SM& sm,
         for (auto row = first.row; row <= last.row; ++row) {
           for (auto cols = sm.nonzero_col_range(row, first.col, last.col + 1);
                cols.first != cols.second; ++cols.first)
-            gAsgns.emplace_back(row, *cols.first, sm(row, *cols.first));
+            asgns->emplace_back(row, *cols.first, sm(row, *cols.first));
         }
       }
       *os << *indent << "return v;" << kLF;
@@ -143,7 +141,7 @@ Indexes Generate(const JsonValue& val, const SM& sm,
     if (name[0] == '_') {
       *os << *indent << ".Append(";
       Indent(indent), Indent(indent);
-      auto nested_first = Generate(m->value, sm, coord_type, indent, os);
+      auto nested_first = Generate(m->value, sm, data_type, asgns, indent, os);
       Unindent(indent), Unindent(indent);
       *os << ")" << kLF;
       nesting_offsets.emplace_back(nested_first.row - first.row,
@@ -153,7 +151,7 @@ Indexes Generate(const JsonValue& val, const SM& sm,
 
   switch (type) {
     case kViewTypeChain:
-      *os << *indent << ", ZeroPtr<" << coord_type <<
+      *os << *indent << ", ZeroPtr<" << data_type <<
           ">(), v::ChainOffsetVector<2>({" << kLF;
       Indent(indent), Indent(indent); {
         for (const auto& nesting_offset : nesting_offsets)
@@ -172,7 +170,7 @@ Indexes Generate(const JsonValue& val, const SM& sm,
 }
 
 void Generate(const std::string& name, const rapidjson::Document& doc,
-              const SM& sm, const std::string& coord_type, std::ostream* os) {
+              const SM& sm, const std::string& data_type, std::ostream* os) {
   using namespace std;
   string guard = "CPPVIEWS_BENCH_SM_VIEW_" + name + "_HPP_";
   transform(guard.begin(), guard.end(), guard.begin(), ::toupper);
@@ -188,7 +186,7 @@ void Generate(const std::string& name, const rapidjson::Document& doc,
       << kLF
       << "class " << name << kLF
       << R"(#define SM_BASE_TYPE \)" << kLF
-      << kIndent << GetNestingType(doc, coord_type) <<
+      << kIndent << GetNestingType(doc, data_type) <<
       "  // avoid type repetition" << kLF
       << kIndent << kIndent << ": public SM_BASE_TYPE {" << kLF
       << kIndent << "typedef SM_BASE_TYPE BaseType;" << kLF
@@ -197,43 +195,38 @@ void Generate(const std::string& name, const rapidjson::Document& doc,
       << string(strlen(kIndent) / 2, ' ') << "public:" << kLF
       << kIndent << name << "() : BaseType(";
 
+  std::vector<Assignment> asgns;
   string indent(kIndent);
   Indent(&indent), Indent(&indent);
-  Generate(doc, sm, coord_type, &indent, os);
+  Generate(doc, sm, data_type, &asgns, &indent, os);
   Unindent(&indent), Unindent(&indent);
 
   *os << ") {" << kLF;
   Indent(&indent);
 
   // // For some reason, this results in an internal compiler bug + very slow
-  // for (const auto& asgn : gAsgns) {
+  // for (const auto& asgn : asgns) {
   //   *os << indent << "(*this)(" << asgn.row << ", " << asgn.col << ") = " <<
   //       asgn.val << ";" << kLF;
   // }
 
-  *os << indent << "static const " << coord_type << " data[] = {" << kLF;
-  Indent(&indent);
-  for (const auto& asgn : gAsgns)
-    *os << indent << asgn.val << ',' << kLF;
-  Unindent(&indent);
-  *os << indent << "};" << kLF;
+#define SMV_GEN_STATIC_ARRAY(type, name, asgn_field)                     \
+  do {                                                                  \
+    *os << indent << "static " << type << " " #name "[] = {" << kLF;    \
+        Indent(&indent);                                                \
+        for (const auto& asgn : asgns)                                  \
+          *os << indent << asgn.asgn_field << ',' << kLF;               \
+        Unindent(&indent);                                              \
+        *os << indent << "};" << kLF;                                   \
+  } while (0)
 
-  *os << indent << "static const " << coord_type << " rows[] = {" << kLF;
-  Indent(&indent);
-  for (const auto& asgn : gAsgns)
-    *os << indent << asgn.row << ',' << kLF;
-  Unindent(&indent);
-  *os << indent << "};" << kLF;
-
-  *os << indent << "static const " << coord_type << " cols[] = {" << kLF;
-  Indent(&indent);
-  for (const auto& asgn : gAsgns)
-    *os << indent << asgn.col << ',' << kLF;
-  Unindent(&indent);
-  *os << indent << "};" << kLF;
+  SMV_GEN_STATIC_ARRAY(data_type, data, val);
+  SMV_GEN_STATIC_ARRAY("unsigned", rows, row);
+  SMV_GEN_STATIC_ARRAY("unsigned", cols, col);
+#undef SMV_GEN_STATIC_ARRAY
 
   *os << indent << kLF
-      << indent << "for (size_t i = 0; i < " << gAsgns.size() << "; ++i)" << kLF
+      << indent << "for (size_t i = 0; i < " << asgns.size() << "; ++i)" << kLF
       << indent << kIndent << "(*this)(rows[i], cols[i]) = data[i];" << kLF;
 
   Unindent(&indent);
@@ -250,12 +243,12 @@ int main(int argc, char* argv[]) {
   cout.sync_with_stdio(false);
 
   if (argc <= 2) {
-    cerr << "Usage: " << argv[0] << " SMVD_FILE MTX_FILE [COORD_TYPE]" << endl;
+    cerr << "Usage: " << argv[0] << " SMVD_FILE MTX_FILE [DATA_TYPE]" << endl;
     return 1;
   }
   const string json_path(argv[1]);
   const string mtx_path(argv[2]);
-  const string coord_type(argc > 3 ? argv[3] : "int"); // TODO: parse from mtx
+  const string data_type(argc > 3 ? argv[3] : "int"); // TODO: parse from mtx
 
   const string basename_path(json_path.substr(0, json_path.rfind('.')));
   const string name = basename_path.substr(
@@ -284,6 +277,6 @@ int main(int argc, char* argv[]) {
   }
 
   assert(0);
-  Generate(name, doc, sm, coord_type, &cout);
+  Generate(name, doc, sm, data_type, &cout);
   return 0;
 }
