@@ -33,8 +33,9 @@ struct SmvFacadeMapHelper {
     return map_[KeyType(row, col)];
   }
 
-  const DataType& operator()(const CoordType& row, const CoordType& col) const {
-    return const_cast<SmvFacadeMapHelper*>(this)->operator()(row, col);
+  DataType& operator()(const CoordType& row, const CoordType& col) const {
+    const auto it(map_.find(KeyType(row, col)));
+    return it != map_.cend() ? it->second : *default_value_;
   }
 
   const size_t size() const { return size_; }
