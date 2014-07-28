@@ -176,20 +176,9 @@ struct SampledRandomAccess : public Benchmark {
       throw std::invalid_argument("Missing --access-count");
   }
 
-  // void Init() override {
-  //   coord_pairs_.clear();
-  //   coord_pairs_.reserve(access_count);
-  //   while (coord_pairs_.size() < access_count)
-  //     for (Coord row = RowCount(smv_); row--; )
-  //       for (Coord col = ColCount(smv_); col--; )
-  //         coord_pairs_.emplace_back(row, col);
-  //   std::shuffle(coord_pairs_.begin(), coord_pairs_.end(), gen_);
-  // }
-
   void Run() override {
     std::uniform_int_distribution<unsigned> row_dis(0, RowCount(smv_) - 1);
     std::uniform_int_distribution<unsigned> col_dis(0, ColCount(smv_) - 1);
-    // for (const auto& cp : coord_pairs_) {
     for (size_t access_count = gPO.access_count(); access_count--; ) {
       auto row = row_dis(gen_), col = col_dis(gen_);
       if (!gPO.dry_run())
@@ -198,12 +187,58 @@ struct SampledRandomAccess : public Benchmark {
         hash_ += row + col;
     }
   }
-
- private:
-  // typedef std::pair<Coord, Coord> CoordPair;
-  // std::vector<CoordPair> coord_pairs_;
 };
 
+struct FilteredRandomAccess : public Benchmark {
+  template<class Func>
+  FilteredRandomAccess(Func filter) {
+    if (!gPO.access_count.count())
+      throw std::invalid_argument("Missing --access-count");
+
+    if (gPO.dry_run())
+      return;
+
+    coord_pairs_.reserve(gPO.access_count());
+    std::uniform_int_distribution<unsigned> row_dis(0, RowCount(smv_) - 1);
+    std::uniform_int_distribution<unsigned> col_dis(0, ColCount(smv_) - 1);
+    for (size_t access_count = gPO.access_count(); access_count--; ) {
+      do {
+        auto row = row_dis(gen_), col = col_dis(gen_);
+        if (filter(row, col)) {
+          coord_pairs_.emplace_back(row, col);
+          break;
+        }
+      } while (true);
+    }
+  }
+
+  void Init() override {
+    std::shuffle(coord_pairs_.begin(), coord_pairs_.end(), gen_);
+  }
+
+  void Run() override {
+    for (const auto& cp : coord_pairs_)
+      hash_ += smv_(cp.first, cp.second);
+  }
+
+ private:
+  typedef std::pair<Coord, Coord> CoordPair;
+  std::vector<CoordPair> coord_pairs_;
+};
+
+struct NonZeroRandomAccess : public FilteredRandomAccess {
+  NonZeroRandomAccess() : FilteredRandomAccess(
+      [this](unsigned row, unsigned col) {
+        return smv_(row, col) != 0;
+      }) {}
+};
+
+struct ZeroRandomAccess : public FilteredRandomAccess {
+  ZeroRandomAccess() : FilteredRandomAccess(
+      [this](unsigned row, unsigned col) {
+        return smv_(row, col) == 0;
+      }) {}
+};
 
 }  // namespace
 
@@ -224,6 +259,8 @@ int main(int argc, char* argv[]) {
   map<string, function<Benchmark*()> > bench_creators = {
     {"pra", [] { return new PermutedRandomAccess; } },
     {"sra", [] { return new SampledRandomAccess; } },
+    {"nra", [] { return new NonZeroRandomAccess; } },
+    {"zra", [] { return new ZeroRandomAccess; } },
   };
 
   if (gPO.list()) {
@@ -279,7 +316,7 @@ int main(int argc, char* argv[]) {
         bench->Run();
       auto real_after = steady_clock::now();
       auto real_time = SMV_NANOS_BETWEEN(real_before, real_after);
-      if (real_time <= kRealMin) {
+      if (real_time <= kRealMin && !gPO.dry_run()) {
         cerr << "Error: Benchmark is too short" << endl;
         return 13;
       }
