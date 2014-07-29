@@ -12,8 +12,7 @@ namespace v {
 
 namespace detail {
 
-template<unsigned chain_dim, typename T, unsigned dims,
-         class SublistType = ListBase<T, dims> >
+template<class SublistType, unsigned chain_dim>
 class ChainedListVector : public ListVector<SublistType> {
   typedef ListVector<SublistType> ListVectorType;
   typedef typename ListVectorType::SizeType SizeType;
@@ -57,14 +56,11 @@ template<unsigned chain_dim>
 struct ChainTag {};
 
 template<class SublistType,
-         unsigned chain_dim = 0,
+         unsigned chain_dim,
          ListFlags flags = kListOpVector,
          unsigned dims = ListTraits<SublistType>::kDims>  // it can also be >
 using Chain = List<SublistType, dims, flags,
-                   detail::ChainedListVector<chain_dim,
-                                             typename SublistType::DataType,
-                                             ListTraits<SublistType>::kDims,
-                                             SublistType>,
+                   detail::ChainedListVector<SublistType, chain_dim>,
                    typename SublistType::DataType>;
 
 template<class SublistType, unsigned dims, unsigned chain_dim>
@@ -73,7 +69,7 @@ class List<
   dims,
   kListOpVector,
 #define V_THIS_DATA_TYPE typename SublistType::DataType
-  detail::ChainedListVector<chain_dim, V_THIS_DATA_TYPE, dims, SublistType>,
+  detail::ChainedListVector<SublistType, chain_dim>,
   V_THIS_DATA_TYPE,
   typename std::enable_if<dims >= ListTraits<SublistType>::kDims>::type>
     : public ListBase<V_THIS_DATA_TYPE, dims>,
@@ -84,9 +80,7 @@ class List<
   for (unsigned dim = chain_dim + 1; dim < dims; ++dim) do body while (false);
 
   typedef ListBase<V_THIS_DATA_TYPE, dims> ListBaseType;
-
-  typedef detail::ChainedListVector<chain_dim, typename SublistType::DataType,
-                                    dims, SublistType> Container;
+  typedef detail::ChainedListVector<SublistType, chain_dim> Container;
   struct Disabler {};  // used for SFINAE (to disable constructors)
 
  public:
@@ -107,7 +101,7 @@ class List<
       : ListBaseType(size, sizes...),
         lists_(std::move(lists)),
         default_value_(default_value),
-        nesting_offsets_(InsertDummies(lists_, ListBaseType::sizes_,
+        nesting_offsets_(InsertDummies(lists_, this->sizes_,
                                        std::move(nesting_offsets))),
         fwd_skip_list_(nesting_offsets_.size() - 1, &nesting_offsets_) {}
 
@@ -142,10 +136,10 @@ class List<
     V_THIS_COMPUTE_NESTING_OFFSETS(lists_.size());
 #undef V_THIS_COMPUTE_NESTING_OFFSETS
 
-    ListBaseType::offsets_.fill(0);
+    this->offsets_.fill(0);
 
     // compute non-lateral size
-    auto& sizes_ = ListBaseType::sizes_;
+    auto& sizes_ = this->sizes_;
     const size_t trailing_gap =
         (sorted_gaps.empty() || sorted_gaps.back().first != lists_.size()) ? 0
         : sorted_gaps.back().second;
@@ -160,7 +154,7 @@ class List<
 
     // TODO: resizing nesting_offsets_ twice and moving skip list isn't ideal,
     // but it makes the initialization simple
-    InsertDummies(lists_, ListBaseType::sizes_, std::move(nesting_offsets_));
+    InsertDummies(lists_, this->sizes_, std::move(nesting_offsets_));
     fwd_skip_list_ = decltype(fwd_skip_list_)(nesting_offsets_.size() - 1,
                                               &nesting_offsets_);
   }
