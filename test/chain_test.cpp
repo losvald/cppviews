@@ -223,3 +223,224 @@ TEST(ChainTest, NestingMakeList) {
   EXPECT_EQ(4, nested.get({0, 7}));
   EXPECT_EQ(7, nested.get({0, 10}));
 }
+
+TEST(UniformChainTest, PolyNoGaps) {
+  //    0 1 2 3 4 5 6 7 8
+  //   +-----+-----+-----+
+  // 0 |1 0 0|4 5 0|0 0 0|
+  // 1 |0 2 0|0 0 6|7 8 9|
+  //   +-----+-----+-----+
+  int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
+  typedef ListBase<int, 2> ListBaseType;
+  UniformChain<ListBase<int, 2>, 0, 3> uc2_0_3_nogap(
+      ListVector<ListBase<int, 2> >()
+      .Append([&](unsigned col, unsigned row) {
+          return digits + (1 + col) * (row == col);
+        }, 3, 2)
+      .Append([&](unsigned col, unsigned row) {
+          return digits + (4 + col) * ((!row && col < 2) || (row && col >= 2));
+        }, 3, 2)
+      .Append([&](unsigned col, unsigned row) {
+          return digits + (7 + col) * (row == 1);
+        }, 3, 2),
+      &digits[10]);  // use -1 as default
+  typedef ListBaseType::SizeArray SizeArray;
+  EXPECT_EQ((SizeArray({9, 2})), uc2_0_3_nogap.sizes());
+
+  // validate all non-zero entries
+  EXPECT_EQ(1, uc2_0_3_nogap.get({0, 0}));
+  EXPECT_EQ(2, uc2_0_3_nogap.get({1, 1}));
+  EXPECT_EQ(4, uc2_0_3_nogap.get({3, 0}));
+  EXPECT_EQ(5, uc2_0_3_nogap.get({4, 0}));
+  EXPECT_EQ(6, uc2_0_3_nogap.get({5, 1}));
+  EXPECT_EQ(7, uc2_0_3_nogap.get({6, 1}));
+  EXPECT_EQ(8, uc2_0_3_nogap.get({7, 1}));
+  EXPECT_EQ(9, uc2_0_3_nogap.get({8, 1}));
+
+  // validate a few other zero entries (corner cases)
+  EXPECT_EQ(0, uc2_0_3_nogap.get({0, 1}));
+  EXPECT_EQ(0, uc2_0_3_nogap.get({1, 0}));
+  EXPECT_EQ(0, uc2_0_3_nogap.get({3, 1}));
+  EXPECT_EQ(0, uc2_0_3_nogap.get({6, 0}));
+  EXPECT_EQ(0, uc2_0_3_nogap.get({8, 0}));
+}
+
+TEST(UniformChainTest, PolyGapsBeforeOnly) {
+  //    0 1 2 3 4 5
+  //       +-+   +-+
+  // 0     |4|   |0|
+  // 1     |0|   |2|
+  //       +-+   +-+
+  int four = 4, two = 2, zero = 0, minus_one = -1;
+  typedef ListBase<int, 2> ListBaseType;
+  UniformChain<ListBase<int, 2>, 0, 1, 2> uc2_0_1_2(
+      ListVector<ListBase<int, 2> >()
+      .Append([&](unsigned col, unsigned row) {
+          if (row >= 2) ADD_FAILURE() << "row = " << row;
+          return row == 0 ? &four : &zero;
+        }, 1, 2)
+      .Append([&](unsigned col, unsigned row) {
+          if (row >= 2) ADD_FAILURE() << "row = " << row;
+          return row == 1 ? &two : &zero;
+        }, 1, 2),
+      &minus_one);
+  typedef ListBaseType::SizeArray SizeArray;
+  EXPECT_EQ((SizeArray({6, 2})), uc2_0_1_2.sizes());
+
+  // validate non-default values
+  EXPECT_EQ(4, uc2_0_1_2.get({2, 0}));
+  EXPECT_EQ(2, uc2_0_1_2.get({5, 1}));
+  EXPECT_EQ(0, uc2_0_1_2.get({5, 0}));
+  EXPECT_EQ(0, uc2_0_1_2.get({2, 1}));
+
+  // validate a few default values (corner cases)
+  EXPECT_EQ(-1, uc2_0_1_2.get({0, 0}));
+  EXPECT_EQ(-1, uc2_0_1_2.get({1, 0}));
+  EXPECT_EQ(-1, uc2_0_1_2.get({3, 1}));
+  EXPECT_EQ(-1, uc2_0_1_2.get({4, 1}));
+}
+
+TEST(UniformChainTest, PolyGapsAfterOnly) {
+  //    0 1 2 3 4 5 6 7
+  //   +-+     +-+
+  // 0 |1|     |3|
+  //   +-+     +-+
+  int one = 1, three = 3, zero = 0;
+  typedef ListBase<int, 2> ListBaseType;
+  UniformChain<ListBase<int, 2>, 0, 1, 0, 3> uc2_0_1_0_3(
+      ListVector<ListBase<int, 2> >()
+      .Append([&](unsigned col, unsigned row) {
+          if (row) ADD_FAILURE() << "row = " << row;
+          return &one;
+        }, 1, 1)
+      .Append([&](unsigned col, unsigned row) {
+          if (row) ADD_FAILURE() << "row = " << row;
+          return &three;
+        }, 1, 1),
+      &zero);
+  typedef ListBaseType::SizeArray SizeArray;
+  EXPECT_EQ((SizeArray({8, 1})), uc2_0_1_0_3.sizes());
+
+  // validate non-default values
+  EXPECT_EQ(1, uc2_0_1_0_3.get({0, 0}));
+  EXPECT_EQ(3, uc2_0_1_0_3.get({4, 0}));
+
+  // validate default values
+  EXPECT_EQ(0, uc2_0_1_0_3.get({1, 0}));
+  EXPECT_EQ(0, uc2_0_1_0_3.get({2, 0}));
+  EXPECT_EQ(0, uc2_0_1_0_3.get({3, 0}));
+  EXPECT_EQ(0, uc2_0_1_0_3.get({5, 0}));
+  EXPECT_EQ(0, uc2_0_1_0_3.get({6, 0}));
+  EXPECT_EQ(0, uc2_0_1_0_3.get({7, 0}));
+}
+
+TEST(UniformChainTest, PolyGapsBeforeAndAfter) {
+  //   0
+  //    0 1 2 3
+  //     +-------+
+  // 0  /       /|
+  //   +-------+ +
+  // 1 |9 8 7 6|/
+  //   +-------+
+  // 2
+  // 3   +-------+
+  // 4  /       /|
+  //   +-------+ +
+  // 5 |2 3 4 5|/
+  //   +-------+
+  // 6
+  // 7   +-------+
+  // 8  /       /|
+  //   +-------+ +
+  // 9 |1 1 1 1|/
+  //   +-------+
+  // 10
+  // 11
+  int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
+  typedef ListBase<int, 3> ListBaseType;
+  UniformChain<ListBase<int, 3>, 1, 1, 1, 2> uc3_1_1_1_2(
+      ListVector<ListBase<int, 3> >()
+      .Append([&](unsigned c1, unsigned c2, unsigned c3) {
+          return &digits[9 - c1];
+        }, 4, 1, 1)
+      .Append([&](unsigned c1, unsigned c2, unsigned c3) {
+          return &digits[2 + c1];
+        }, 4, 1, 1)
+      .Append([&](unsigned c1, unsigned c2, unsigned c3) {
+          return &digits[1];
+        }, 4, 1, 1),
+      &digits[10]);  // use -1 as default
+  typedef ListBaseType::SizeArray SizeArray;
+  EXPECT_EQ((SizeArray({4, 12, 1})), uc3_1_1_1_2.sizes());
+
+  // validate all non-zero entries
+  EXPECT_EQ(9, uc3_1_1_1_2.get({0, 1}));
+  EXPECT_EQ(8, uc3_1_1_1_2.get({1, 1}));
+  EXPECT_EQ(7, uc3_1_1_1_2.get({2, 1}));
+  EXPECT_EQ(6, uc3_1_1_1_2.get({3, 1}));
+  EXPECT_EQ(2, uc3_1_1_1_2.get({0, 5}));
+  EXPECT_EQ(3, uc3_1_1_1_2.get({1, 5}));
+  EXPECT_EQ(4, uc3_1_1_1_2.get({2, 5}));
+  EXPECT_EQ(5, uc3_1_1_1_2.get({3, 5}));
+  for (size_t i = 0; i < 4; ++i)
+    EXPECT_EQ(1, uc3_1_1_1_2.get({i, 9, 0})) << "get(" << i << ", 9, 0)";
+
+  // validate a few other zero entries (corner cases)
+  for (size_t c2 = 0; c2 <= 9; ++c2)
+    if (c2 != 1 && c2 != 5 && c2 != 9)
+      for (size_t c1 = 0; c1 <= 3; ++c1)
+        EXPECT_EQ(-1, uc3_1_1_1_2.get({c1, c2, 0}))
+            << "get(" << c1 << ", " << c2 << ", 0)";
+}
+
+TEST(UniformChainTest, MakeList) {
+  //    0 1 2 3 4 5 6 7 8
+  //     +-+     +-+   +-+
+  // 0   |1|     |1|   |2|
+  //     | |     | |   | |
+  // 1   |1|     |1|   |2|
+  //     | |     | |   +-+
+  // 2   |1|     |1|   |2|
+  //     | |     | |   | |
+  // 3   |1|     |1|   |2|
+  //     +-+     +-+   +-+
+  static int zero = 0, minus_one = -1, minus_two = -2;
+  Chain<ListBase<int, 2>, 0> nested(
+      ListVector<ListBase<int, 2> >()
+      .Append(MakeList(
+          UniformChainTag<0, 1, 1, 2>(),
+          ListVector<ListBase<int, 2> >()
+          .Append([](unsigned, unsigned) {
+              static int one = 1;
+              return &one;
+            }, 1, 4)
+          .Append([](unsigned, unsigned) {
+              static int one = 1;
+              return &one;
+            }, 1, 4)
+          , &minus_one))
+      .Append(
+          UniformChainTag<1, 2>(),
+          ListVector<ListBase<int, 2> >()
+          .Append([](unsigned, unsigned) {
+              static int two = 2;
+              return &two;
+            }, 1, 2)
+          .Append([](unsigned, unsigned) {
+              static int two = 2;
+              return &two;
+            }, 1, 2)
+          , &minus_two)
+      , &zero);
+
+  ASSERT_EQ(9, nested.sizes()[0]);
+  ASSERT_EQ(4, nested.sizes()[1]);
+  for (size_t c1 = 0; c1 <= 8; ++c1)
+    for (size_t c2 = 0; c2 <= 3; ++c2) {
+      int exp = -1;
+      if (c1 == 1 || c1 == 5) exp = 1;
+      else if (c1 == 8) exp = 2;
+      EXPECT_EQ(exp, nested.get({c1, c2}))
+          << "get(" << c1 << ", " << c2 << ')';
+    }
+}

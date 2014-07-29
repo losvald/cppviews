@@ -278,6 +278,139 @@ class List<
   SkipListType fwd_skip_list_;
 };
 
+// specialization for Uniform Chain (same sublist sizes + no lateral offsets)
+
+namespace detail {
+
+template<class SublistType, unsigned chain_dim, size_t uniform_size_,
+         size_t gap_before_, size_t gap_after_>
+class UniformlyChainedListVector
+#define V_THIS_BASE_TYPE ChainedListVector<SublistType, chain_dim>
+    : public V_THIS_BASE_TYPE {
+  typedef V_THIS_BASE_TYPE ChainedListVectorType;
+#undef V_THIS_BASE_TYPE
+  typedef ListVector<SublistType> ListVectorType;
+  typedef typename ListVectorType::SizeType SizeType;
+ public:
+  UniformlyChainedListVector(ListVectorType&& sv)
+      : ChainedListVectorType(std::move(sv)) {}
+  UniformlyChainedListVector(SizeType capacity)
+      : ChainedListVectorType(capacity) {}
+  UniformlyChainedListVector() = default;
+  static constexpr size_t uniform_size() { return uniform_size_; }
+  static constexpr size_t gap_before() { return gap_before_; }
+  static constexpr size_t gap_after() { return gap_after_; }
+};
+
+}  // namespace detail
+
+template<unsigned chain_dim, size_t uniform_size_,
+         size_t gap_before_ = 0, size_t gap_after_ = 0>
+struct UniformChainTag {};
+
+template<class SublistType,
+         unsigned chain_dim,
+         size_t uniform_size_,
+         size_t gap_before_ = 0,
+         size_t gap_after_ = 0,
+         ListFlags flags = kListOpVector,
+         unsigned dims = ListTraits<SublistType>::kDims>  // it can also be >
+using UniformChain = List<SublistType, dims, flags,
+                          detail::UniformlyChainedListVector<
+                            SublistType, chain_dim, uniform_size_,
+                            gap_before_, gap_after_>,
+                          typename SublistType::DataType>;
+
+template<class SublistType, unsigned dims, unsigned chain_dim,
+         size_t uniform_size_, size_t gap_before_, size_t gap_after_>
+class List<
+  SublistType,
+  dims,
+  kListOpVector,
+#define V_THIS_DATA_TYPE typename SublistType::DataType
+  detail::UniformlyChainedListVector<SublistType, chain_dim, uniform_size_,
+                                     gap_before_, gap_after_>,
+  V_THIS_DATA_TYPE,
+  typename std::enable_if<dims >= ListTraits<SublistType>::kDims>::type>
+    : public ListBase<V_THIS_DATA_TYPE, dims>,
+      protected detail::ChainHelper<SublistType> {
+  static_assert(chain_dim < dims, "chain_dim < dims");
+
+  typedef ListBase<V_THIS_DATA_TYPE, dims> ListBaseType;
+  typedef detail::UniformlyChainedListVector<
+    SublistType, chain_dim, uniform_size_, gap_before_, gap_after_> Container;
+
+  // redeclared for convenience of the implementation
+  typedef V_THIS_DATA_TYPE DataType;
+  typedef typename ListBaseType::SizeArray SizeArray;
+#undef V_THIS_DATA_TYPE
+
+ public:
+  template<typename... Sizes>
+  List(ListVector<SublistType>&& lists, DataType* default_value)
+      : lists_(std::move(lists)),
+        default_value_(default_value) {
+    const auto& first_sizes = lists_[0].sizes();
+    std::copy(first_sizes.begin(), first_sizes.end(), this->sizes_.begin());
+    this->sizes_[chain_dim] = uniform_size_ + gap_before_ + gap_after_;
+    this->sizes_[chain_dim] *= lists_.size();
+    this->offsets_.fill(0);
+    this->InsertDummies(&lists_);
+  }
+
+  // List(const List&) = delete;  // redundant since ListVector is not copyable
+  // List(const List&) = default;
+
+  // used by MakeList
+  template<typename... Args>
+  List(UniformChainTag<chain_dim, uniform_size_, gap_before_, gap_after_>,
+       Args&&... args)
+      : List(std::forward<Args>(args)...) {}
+
+  friend List MakeList(List&& list) {
+    return std::forward<List>(List(std::move(list)));
+  }
+
+  template<typename... Indexes>
+  DataType& operator()(const Indexes&... indexes) const {
+    // TODO: terribly inefficient
+    return get(SizeArray{static_cast<size_t>(indexes)...});
+  }
+
+  void ShrinkToFirst() override {
+    ListBaseType::ShrinkToFirst();
+    lists_.Erase(++lists_.begin(), lists_.end());
+  }
+
+  DataType& get(const SizeArray& indexes) const override {
+    if (indexes[chain_dim] < gap_before_)
+      return *default_value_;
+
+    SizeArray local_indexes(indexes);  // TODO: get rid of O(kDims) copy
+    auto& local_index = local_indexes[chain_dim];
+    const auto list_index = (local_index -= gap_before_) / bucket_size();
+    local_index -= list_index * bucket_size();
+    return local_index < uniform_size_
+                         ? lists_[1 + list_index].get(local_indexes)
+                         : *default_value_;
+  }
+
+  typename View<DataType>::Iterator iterator_begin() const override {
+    // TODO: implement
+    return *static_cast<typename View<DataType>::Iterator*>(nullptr);
+  }
+
+ private:
+  static constexpr size_t bucket_size() {
+    return uniform_size_ + gap_before_ + gap_after_;
+  }
+
+  Container lists_;
+  DataType* default_value_;
+};
+
+// functions
+
 template<unsigned dims>
 using ChainOffsetVector = std::vector<std::array<size_t, dims> >;
 
@@ -292,6 +425,18 @@ auto MakeList(ChainTag<chain_dim>,
     -> V_LIST_TYPE {
   return V_LIST_TYPE(std::move(lists), default_value,
                      std::move(nesting_offsets), sizes...);
+}
+#undef V_LIST_TYPE
+
+template<class Sublist, unsigned chain_dim, size_t uniform_size,
+         size_t gap_before, size_t gap_after>
+auto MakeList(UniformChainTag<chain_dim, uniform_size, gap_before, gap_after>,
+              ListVector<Sublist>&& lists,
+              typename Sublist::DataType* default_value)
+#define V_LIST_TYPE \
+    UniformChain<Sublist, chain_dim, uniform_size, gap_before, gap_after>
+    -> V_LIST_TYPE {
+  return V_LIST_TYPE(std::move(lists), default_value);
 }
 #undef V_LIST_TYPE
 
