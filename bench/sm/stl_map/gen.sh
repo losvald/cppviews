@@ -7,29 +7,16 @@ if [ $# -lt 1 ]; then
     echo "Usage: $0 MTX_FILE" >&2
     exit 1
 fi
-mtx="$(readlink -e $1)"
-exit_code=$?
-if (( $exit_code != 0 )); then
-    echo "mtx file does not exist: $mtx" >&2
-    exit 2
-fi
+#mtx="$(mtx_path "$1")"
+mtx=$(readlink -e $1)
+(( $? != 0 )) && exit 1
+hpp="$src_dir/$(mtx_name "$mtx").hpp"
 
-name=$(basename "$mtx")
-name=${name%.*}
-hpp="$src_dir/$name.hpp"
-
-# sanity check
-if [ $(dirname "$hpp") != "$src_dir" ]; then
-    echo "refusing to write to a wrong directory: $hpp" >&2
-    exit 3
-fi
-
-echo "MTX=$mtx" >&2
-name=$(echo $name | tr '-' '_')  # symbols must not contain '-' ('_' is fine)
-guard="HPPVIEWS_BENCH_SM_STL_MAP_$(echo $name | tr 'a-z' 'A-Z')_HPP_"
-sizes=$(grep -m 1 '^[^%][0-9]' "$mtx" | awk '{print $1 ", " $2}')
-echo "SIZES=$sizes" >&2
+sm=$(sm_name $hpp)
+guard=$(include_guard "$hpp")
+sizes=$(mtx_sizes "$mtx")
 data_type=$(mtx_data_type "$mtx")
+base_type="SmvFacade<std::map<std::pair<unsigned, unsigned>, $data_type> >"
 cat >"$hpp" <<EOF
 #ifndef $guard
 #define $guard
@@ -42,15 +29,15 @@ cat >"$hpp" <<EOF
 #include <fstream>
 #include <string>
 
-class $name
+class $sm
 #define SM_BASE_TYPE \\
-  SmvFacade<std::map<std::pair<unsigned, unsigned>, $data_type> >
+  $base_type  // avoid type repetition
     : public SM_BASE_TYPE {
   typedef SM_BASE_TYPE BaseType;
 #undef SM_BASE_TYPE
 
  public:
-  $name() : BaseType(ZeroPtr<$data_type>(), $sizes) {
+  $sm() : BaseType(ZeroPtr<$data_type>(), $sizes) {
     // Since the path depends on the path from which the compiled binary is run
     // and there are several such binaries, we need to specify an absolute path
     std::ifstream ifs("$mtx");
@@ -58,7 +45,6 @@ class $name
       throw std::invalid_argument("invalid path to .mtx file");
 
     SparseMatrix<$data_type, unsigned> sm;
-
     sm.Init(ifs);
     const unsigned row_to = RowCount(*this);
     const unsigned col_to = ColCount(*this);
