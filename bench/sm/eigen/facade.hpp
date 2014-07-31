@@ -31,11 +31,11 @@ class SmvFacade<V_THIS_ADAPTEE_TYPE>
   }
 
   DataType& operator()(unsigned row, unsigned col) const {
-    return sm_.coeff(row, col) ? sm_.coeffRef(row, col) : *ZeroPtr<int>();
+    return sm_.coeff(row, col) ? sm_.coeffRef(row, col) : *this->default_value_;
   }
 
  protected:
-  mutable Eigen::SparseMatrix<int, Eigen::RowMajor> sm_;
+  mutable Eigen::SparseMatrix<DataType, Eigen::RowMajor> sm_;
 };
 
 #endif  /* CPPVIEWS_BENCH_SM_EIGEN_FACADE_HPP_ */

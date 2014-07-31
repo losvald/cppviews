@@ -43,6 +43,6 @@ function include_guard {
     local hpp="$1"
     local name=$(sm_name "$hpp")
     echo -n "CPPVIEWS_BENCH_SM_"
-    echo "$(basename $(dirname "$(readlink -e "$hpp")"))_${name}_HPP" \ |
-    tr a-z A-Z
+    echo "$(basename $(dirname "$(readlink -e "$hpp")"))_${name}_HPP_" | \
+	tr a-z A-Z
 }
