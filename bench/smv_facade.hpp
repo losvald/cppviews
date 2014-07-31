@@ -1,6 +1,8 @@
 #ifndef CPPVIEWS_BENCH_SMV_FACADE_HPP_
 #define CPPVIEWS_BENCH_SMV_FACADE_HPP_
 
+#include "smv.hpp"
+
 #include <array>
 #include <map>
 #include <utility>
@@ -10,33 +12,19 @@ class SmvFacade;
 
 namespace detail {
 
-template<typename Map>
-struct SmvFacadeMapHelper {
- public:
-  typedef Map MapType;
-  typedef typename Map::mapped_type DataType;
+template<typename T, typename Coord = unsigned>
+class SmvFacadeHelper {
   typedef std::array<size_t, 2> SizeArray;
-  DataType default_val_ = 0;
-
- protected:
-  typedef typename MapType::key_type KeyType;
-  typedef typename KeyType::first_type CoordType;
 
  public:
-  SmvFacadeMapHelper(DataType* default_value,
-                     const CoordType& row_count, const CoordType& col_count)
+  typedef T DataType;
+  typedef Coord CoordType;
+
+  SmvFacadeHelper(DataType* default_value,
+                  const CoordType& row_count, const CoordType& col_count)
       : size_(row_count * col_count),
         sizes_({row_count, col_count}),
         default_value_(default_value) {}
-
-  DataType& operator()(const CoordType& row, const CoordType& col) {
-    return map_[KeyType(row, col)];
-  }
-
-  DataType& operator()(const CoordType& row, const CoordType& col) const {
-    const auto it(map_.find(KeyType(row, col)));
-    return it != map_.cend() ? it->second : *default_value_;
-  }
 
   const size_t size() const { return size_; }
   const SizeArray& sizes() const { return sizes_; }
@@ -44,8 +32,35 @@ struct SmvFacadeMapHelper {
  protected:
   size_t size_;
   SizeArray sizes_;
-  mutable MapType map_;
   DataType* default_value_;
+};
+
+template<typename Map>
+class SmvFacadeMapHelper
+#define V_THIS_BASE_TYPE                                \
+  SmvFacadeHelper<typename Map::mapped_type, typename Map::key_type::first_type>
+    : public V_THIS_BASE_TYPE {
+  typedef typename Map::key_type KeyType;
+ public:
+  typedef typename SmvFacadeMapHelper::DataType DataType;
+  typedef typename SmvFacadeMapHelper::CoordType CoordType;
+
+  SmvFacadeMapHelper(DataType* default_value,
+                     const CoordType& row_count, const CoordType& col_count)
+      : V_THIS_BASE_TYPE(default_value, row_count, col_count) {}
+#undef V_THIS_BASE_TYPE
+
+  DataType& operator()(const CoordType& row, const CoordType& col) {
+    return map_[KeyType(row, col)];
+  }
+
+  DataType& operator()(const CoordType& row, const CoordType& col) const {
+    const auto it(map_.find(KeyType(row, col)));
+    return it != map_.cend() ? it->second : *this->default_value_;
+  }
+
+ protected:
+  mutable Map map_;
 };
 
 }  // namespace detail

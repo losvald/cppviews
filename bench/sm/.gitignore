@@ -3,6 +3,7 @@
 /*/*_runner
 /*/*_runner.cpp
 /*/*.hpp
+!/*/facade.hpp
 
 # Allow some examples which are not auto-generated
 !/*/*_manual.hpp
