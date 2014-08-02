@@ -175,8 +175,7 @@ class List<cpp14::integer_sequence<BlockSize, block_sizes...>,
     return get0(cpp14::index_sequence_for<Indexes...>(), indexes...);
   }
 
-  DataType&
-  get(const typename ListBaseType::SizeArray& indexes) const override {
+  DataType& get(typename ListBaseType::SizeArray&& indexes) const override {
     return get0(indexes, cpp14::make_index_sequence<dims>());
   }
 

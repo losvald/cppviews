@@ -346,7 +346,8 @@ class ListBase : public View<T> {
     sizes_.fill(0);
   }
 
-  virtual T& get(const SizeArray& indexes) const = 0;
+  virtual T& get(SizeArray&& indexes) const = 0;
+  T& get(const SizeArray& indexes) const { return get(SizeArray(indexes)); }
 
   const SizeArray& sizes() const { return sizes_; }
 
@@ -415,7 +416,7 @@ class List<void, dims, kListNoFlags, void, T> : public ListBase<T, dims> {
   List() : List(cpp14::make_index_sequence<dims>()) {}
   void ShrinkToFirst() override {}
 
-  T& get(const typename ListBaseType::SizeArray& indexes) const override {
+  T& get(typename ListBaseType::SizeArray&& indexes) const override {
     return *static_cast<T*>(nullptr);  // Undefined Behavior, but fast
   }
 
@@ -526,7 +527,7 @@ class List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>
     return container_[pos.first].get(pos.second);
   }
 
-  DataType& get(const SizeArray& indexes) const {
+  DataType& get(SizeArray&& indexes) const override {
     return const_cast<DataType&>(this->get(indexes.front()));
   }
   void set(const DataType& value, const SizeArray& indexes) const {
@@ -694,7 +695,7 @@ class List<void, dims, kListNoFlags, Accessor, T>
     this->operator()(indexes...) = value;
   }
 
-  T& get(const SizeArray& indexes) const {
+  T& get(SizeArray&& indexes) const override {
     return this->get0(indexes, cpp14::make_index_sequence<dims>());
   }
 

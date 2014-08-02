@@ -190,19 +190,18 @@ class List<
     lists_.Erase(++lists_.begin(), lists_.end());
   }
 
-  DataType& get(const SizeArray& indexes) const override {
+  DataType& get(SizeArray&& indexes) const override {
     auto nonlateral_pos = fwd_skip_list_.get(indexes[chain_dim]);
     const auto& list = lists_[nonlateral_pos.first];
     bool within = nonlateral_pos.second < list.sizes()[chain_dim];
-    SizeArray local_indexes(indexes);  // TODO: avoid copies using && argument
-    local_indexes[chain_dim] = nonlateral_pos.second;
+    indexes[chain_dim] = nonlateral_pos.second;
     const auto& offset = nesting_offsets_[nonlateral_pos.first];
     V_CHAIN_FOR_LATERAL_DIM(dim, {
-        local_indexes[dim] -= offset[dim];
         within &= (offset[dim] <= indexes[dim]) &
             (indexes[dim] < offset[dim] + list.sizes()[dim]);
+        indexes[dim] -= offset[dim];
       });
-    return within ? list.get(local_indexes) : *default_value_;
+    return within ? list.get(std::move(indexes)) : *default_value_;
   }
 
   typename View<DataType>::Iterator iterator_begin() const override {
@@ -382,17 +381,16 @@ class List<
     lists_.Erase(++lists_.begin(), lists_.end());
   }
 
-  DataType& get(const SizeArray& indexes) const override {
+  DataType& get(SizeArray&& indexes) const override {
     if (indexes[chain_dim] < gap_before_)
       return *default_value_;
 
-    SizeArray local_indexes(indexes);  // TODO: get rid of O(kDims) copy
-    auto& local_index = local_indexes[chain_dim];
-    const auto list_index = (local_index -= gap_before_) / bucket_size();
-    local_index -= list_index * bucket_size();
-    return local_index < uniform_size_
-                         ? lists_[1 + list_index].get(local_indexes)
-                         : *default_value_;
+    auto& nonlateral_index = indexes[chain_dim];
+    const auto list_index = (nonlateral_index -= gap_before_) / bucket_size();
+    nonlateral_index -= list_index * bucket_size();
+    return nonlateral_index < uniform_size_
+                              ? lists_[1 + list_index].get(std::move(indexes))
+                              : *default_value_;
   }
 
   typename View<DataType>::Iterator iterator_begin() const override {
