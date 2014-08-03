@@ -307,6 +307,7 @@ class PortionBaseIter
                              std::random_access_iterator_tag,
                              T> {
   V_DEFAULT_ITERATOR_DERIVED_HEAD(PortionBaseIter);
+  template<class, class, class, class> friend class DefaultIterator;
  public:
   explicit PortionBaseIter(const PortionBase<T>& p, size_t index)
       : p_(&p),

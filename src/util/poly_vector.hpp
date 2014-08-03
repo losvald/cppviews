@@ -113,16 +113,13 @@ class PolyVector {
 
   template<typename... Args>
   inline PolyVector&& Append(Args&&... args) {
-    return this->Append<decltype(FactoryType()(std::forward<Args>(args)...))>(
-        std::forward<Args>(args)...);
+    return this->AppendDerived<
+      decltype(FactoryType()(std::forward<Args>(args)...))>(
+          std::forward<Args>(args)...);
   }
 
-  // Note: we use the overload above instead of having the following default
-  //   Derived = typename std::result_of<FactoryType(Args...)>::type>
-  // because this way we can explicitly resolve ambiguity
-
   template<class Derived, typename... Args>
-  inline PolyVector&& Append(Args&&... args) {
+  inline PolyVector&& AppendDerived(Args&&... args) {
     detail::PolyVectorEmplaceHelper<T, Base> h;
     h.template EmplaceBack<Derived>(v_, std::forward<Args>(args)...);
     return std::move(*this);

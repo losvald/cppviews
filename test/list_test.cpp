@@ -43,7 +43,7 @@ TEST(ListTest, SimpleNonPoly) {
   int arr[] = {0, 10, 20, 30, 40, 50};
   PolyVector<Portion<int*>, PortionBase<int>, PortionFactory > v;
   v.Append(arr, 1);
-  v.Append<Portion<int*> >(arr + 1, 2);
+  v.AppendDerived<Portion<int*> >(arr + 1, 2);
   PortionVector<int, Portion<int*> > w = v;
   SimpleList<Portion<int*> > l(std::move(v));
 
@@ -52,7 +52,7 @@ TEST(ListTest, SimpleNonPoly) {
   SimpleList<Portion<int*> > l2(
       PortionVector<int, Portion<int*> >()
       .Append(arr + 4, 1)
-      .Append<int>(arr + 1, 2));
+      .AppendDerived<int>(arr + 1, 2));
   EXPECT_EQ(40, l2.get(0));
   EXPECT_EQ(10, l2.get(1));
   EXPECT_EQ(20, l2.get(2));
@@ -84,7 +84,7 @@ TEST(ListTest, SimpleNonPoly) {
   auto l3 = MakeList(
       PortionVector<int, Portion<int*> >()
       .Append(arr + 4, 1)
-      .Append<int>(arr + 1, 2));
+      .AppendDerived<int>(arr + 1, 2));
   EXPECT_EQ(40, l2.get(0));
   EXPECT_EQ(10, l2.get(1));
   EXPECT_EQ(20, l2.get(2));
@@ -217,17 +217,18 @@ void AssertEqualYellow(const L& l) {
 }
 
 TEST(ListTest, ConstructorPoly) {
-  char y = 'y';
-  const char *hello_world_str = "hello world";
-  std::string world(hello_world_str + 6, 5);
+  static char y = 'y';
+  static const char *hello_world_str = "hello world";
+  static std::string world(hello_world_str + 6, 5);
 
   SimpleList<PortionBase<const char> > l_verbose(
       PortionVector<const char>()
-      .Append<SingletonPortion<const char> >(y)
-      .Append<Portion<const char*> >(hello_world_str + 1, 4)
-      .Append<Portion<std::string::const_iterator> >(world.cbegin(), 1)
-      .Append<decltype(MakePortion(hello_world_str[5]))>(hello_world_str[5])
-      .Append<decltype(MakePortion(world.crbegin() + 2, 4))>(
+      .AppendDerived<SingletonPortion<const char> >(y)
+      .AppendDerived<Portion<const char*> >(hello_world_str + 1, 4)
+      .AppendDerived<Portion<std::string::const_iterator> >(world.cbegin(), 1)
+      .AppendDerived<decltype(MakePortion(hello_world_str[5]))>(
+          hello_world_str[5])
+      .AppendDerived<decltype(MakePortion(world.crbegin() + 2, 4))>(
           world.crbegin() + 2, 4));
   AssertEqualYellow(l_verbose);
 
@@ -291,7 +292,7 @@ TEST(ListTest, ConstructorPoly) {
 }
 
 TEST(ListTest, SizesAndSize) {
-  int var = 2;
+  static int var = 2;
   auto il1d = MakeList([&](size_t index) { return &var; }, 7);
   EXPECT_EQ(7, il1d.sizes()[0]);
   EXPECT_EQ(7, il1d.size());
@@ -303,7 +304,7 @@ TEST(ListTest, SizesAndSize) {
 }
 
 TEST(ListTest, Offsets2D) {
-  int m[3][3]; std::iota(&m[0][0], &m[0][0] + 9, 1);
+  static int m[3][3]; std::iota(&m[0][0], &m[0][0] + 9, 1);
   auto il2d = MakeList([&](unsigned row, unsigned col) { return &m[row][col]; },
                        Sub(2, 5), Sub(1, 3));
   EXPECT_EQ(8, il2d(0, 0));
@@ -319,8 +320,8 @@ TEST(ListTest, Offsets2D) {
 }
 
 TEST(ListTest, Offsets3DSub) {
-  const int n = 5;
-  int m[n][n][n];
+  static const int n = 5;
+  static int m[n][n][n];
   for (int x = 0, px = 1; x < n; ++x, px *= 2)
     for (int y = 0, py = 1; y < n; ++y, py *= 3)
       for (int z = 0, pz = 1; z < n; ++z, pz *= 5) {
@@ -380,7 +381,7 @@ TEST(ListTest, IterEmpty) {
   EXPECT_EQ(l.end(), l.end());
   EXPECT_EQ(l.begin(), l.end());
 
-  int datum;
+  static int datum;
   auto il = MakeList([&](int index) { return &datum; }, 0);
   EXPECT_EQ(il.fbegin(), il.fbegin());
   EXPECT_EQ(il.fend(), il.fend());

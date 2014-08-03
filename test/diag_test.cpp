@@ -68,7 +68,6 @@ TEST(DiagTest, ConstructorBlockCount4D) {
 TEST(DiagTest, Unsigned2D) {
   static double default_val = 0;
   Diag<double, unsigned, 2, 3> d_2_3(&default_val, 10, 10);
-  Diag<double, unsigned, 2, 3>::SizeArray a;
   EXPECT_EQ(2, d_2_3.block_size<0>());
   EXPECT_EQ(3, d_2_3.block_size<1>());
   EXPECT_EQ(4, d_2_3.block_count());

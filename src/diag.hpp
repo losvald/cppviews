@@ -185,9 +185,8 @@ class List<cpp14::integer_sequence<BlockSize, block_sizes...>,
   }
 
   template<unsigned dim>
-  constexpr BlockSize block_size() const {
-    static constexpr BlockSize kBlockSizes[] = {block_sizes...};
-    return kBlockSizes[dim];
+  static constexpr BlockSize block_size() {
+    return list_detail::GetNth<dim, BlockSize, block_sizes...>::value;
   }
 
   BlockSize block_size(unsigned dim) const {

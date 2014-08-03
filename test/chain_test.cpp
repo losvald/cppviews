@@ -9,7 +9,7 @@ TEST(ChainTest, PolyNoGapNoOffsets) {
   // 2 |0 0 3+-------+0|
   // 3 +-----+       |9|
   //                 +-+
-  int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
+  static int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
   typedef ListBase<int, 2> ListBaseType;
   Chain<ListBase<int, 2>, 0> c2_0_nogap(
       ListVector<ListBase<int, 2> >()
@@ -71,7 +71,7 @@ TEST(ChainTest, PolyConst) {
   // 8       |0 0|
   // 9       |9 0|
   //         +---+
-  const int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
+  static const int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
   typedef ListBase<const int, 2> ListBaseType;
   auto c2_1_lists_factory = [&]() {
     return ListVector<ListBaseType>()
@@ -133,8 +133,8 @@ TEST(ChainTest, PolyConst) {
 }
 
 TEST(ChainTest, Poly1DLeadingGap) {
-  const char* value = "value";
-  const char* default_value = nullptr;
+  static const char* value = "value";
+  static const char* default_value = nullptr;
   typedef ListBase<const char*, 1> ListBaseType;
   Chain<ListBaseType, 0> c1(
       ListVector<ListBaseType>()
@@ -153,8 +153,8 @@ TEST(ChainTest, Poly1DLeadingGap) {
 }
 
 TEST(ChainTest, PolyTrailingGap) {
-  const char* value = "value";
-  const char* default_value = nullptr;
+  static const char* value = "value";
+  static const char* default_value = nullptr;
   typedef ListBase<const char*, 3> ListBaseType;
   Chain<ListBaseType, 1> c3_1(
       ListVector<ListBaseType>()
@@ -173,7 +173,7 @@ TEST(ChainTest, PolyTrailingGap) {
 }
 
 TEST(ChainTest, NestingMakeList) {
-  int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
+  static int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
   ListVector<ListBase<int, 2> > lists_root;
 
   ListVector<ListBase<int, 2> > lists_1;
@@ -230,7 +230,7 @@ TEST(UniformChainTest, PolyNoGaps) {
   // 0 |1 0 0|4 5 0|0 0 0|
   // 1 |0 2 0|0 0 6|7 8 9|
   //   +-----+-----+-----+
-  int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
+  static int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
   typedef ListBase<int, 2> ListBaseType;
   UniformChain<ListBase<int, 2>, 0, 3> uc2_0_3_nogap(
       ListVector<ListBase<int, 2> >()
@@ -271,7 +271,7 @@ TEST(UniformChainTest, PolyGapsBeforeOnly) {
   // 0     |4|   |0|
   // 1     |0|   |2|
   //       +-+   +-+
-  int four = 4, two = 2, zero = 0, minus_one = -1;
+  static int four = 4, two = 2, zero = 0, minus_one = -1;
   typedef ListBase<int, 2> ListBaseType;
   UniformChain<ListBase<int, 2>, 0, 1, 2> uc2_0_1_2(
       ListVector<ListBase<int, 2> >()
@@ -305,7 +305,7 @@ TEST(UniformChainTest, PolyGapsAfterOnly) {
   //   +-+     +-+
   // 0 |1|     |3|
   //   +-+     +-+
-  int one = 1, three = 3, zero = 0;
+  static int one = 1, three = 3, zero = 0;
   typedef ListBase<int, 2> ListBaseType;
   UniformChain<ListBase<int, 2>, 0, 1, 0, 3> uc2_0_1_0_3(
       ListVector<ListBase<int, 2> >()
@@ -356,7 +356,7 @@ TEST(UniformChainTest, PolyGapsBeforeAndAfter) {
   //   +-------+
   // 10
   // 11
-  int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
+  static int digits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1};
   typedef ListBase<int, 3> ListBaseType;
   UniformChain<ListBase<int, 3>, 1, 1, 1, 2> uc3_1_1_1_2(
       ListVector<ListBase<int, 3> >()

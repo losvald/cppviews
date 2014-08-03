@@ -30,6 +30,7 @@ using ViewTypeSparseArray = std::array<T,
 
 template<unsigned char view_type>
 class ViewParams {
+ public:
   enum Dir : unsigned char { kRightDown, kLeftDown, kLeftUp, kRightUp };
 };
 

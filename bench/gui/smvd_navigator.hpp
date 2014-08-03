@@ -5,7 +5,7 @@
 
 #include <wx/window.h>
 
-struct wxDC;
+class wxDC;
 
 class Navigator : public wxWindow, public SMDisplayable {
  public:

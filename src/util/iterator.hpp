@@ -186,12 +186,12 @@ template<class Derived,
          class Category,
          class V,
          class Distance = std::ptrdiff_t>
-struct DefaultIterator : public std::iterator<Category, V, Distance> {
+class DefaultIterator : public std::iterator<Category, V, Distance> {
 
 #define V_DEFAULT_ITERATOR_DERIVED_HEAD(Iter)                           \
   typedef typename Iter::DefaultIterator_ DefaultIterator_;             \
   typedef typename DefaultIterator_::Enabler Enabler;                   \
-  template<class, class, class, class> friend class DefaultIterator;
+  template<class, class, class, class> friend class ::DefaultIterator;
 
 #define V_DEFAULT_ITERATOR_DISABLE_NONCONVERTIBLE(FromValue)            \
   typename DefaultIterator_::template                                   \

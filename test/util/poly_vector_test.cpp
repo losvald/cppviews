@@ -75,7 +75,7 @@ TYPED_TEST(PolyVectorTest, DefaultFactory) {
 struct ReversedStringFactory {
   template<typename... Args>
   ReversedString operator()(Args&&... args) const {
-    FAIL();                  // verify this functor is not ever called
+    ADD_FAILURE();  // verify this functor is not ever called
   }
 };
 

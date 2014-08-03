@@ -42,7 +42,7 @@ struct ChainHelper<ListBase<T, dims> > {
   template<class Container>
   static void InsertDummies(Container* c) {
     c->template Add<DummyList<T, dims> >(c->begin());
-    c->template Append<DummyList<T, dims> >();
+    c->template AppendDerived<DummyList<T, dims> >();
   }
 };
 

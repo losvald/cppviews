@@ -49,7 +49,7 @@ class ProgramOptions {
   template<typename T = bool> class Option;
  private:
   struct ValueParser;
-  struct OptionBase;
+  class OptionBase;
   template<typename T> class WrappedPointer;
 
  public:

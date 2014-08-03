@@ -46,20 +46,27 @@ class ImmutableSkipList {
       return;
     }
 
+    // temporarily suppress warnings for "*--slow_it = *--fast_it + *--fast_it",
+    // which is all right since operator+ is commutative
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsequence-point"
+#elif defined __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunsequenced"
+#endif
+
     // Avoid unnecessary branching (and zero-assignment) overhead by using:
     // - using size_getter_ directly to initialize the last level of the tree
     // - zeroing out skip counts for out-of-range bucket indexes efficiently
     auto skip_cnts_noskip_cnt = (skip_cnts_.size() - bkt_cnt_) >> 1;
     auto skip_cnts_it = skip_cnts_.end();
-    std::fill_n(skip_cnts_it - skip_cnts_noskip_cnt, skip_cnts_noskip_cnt, 0);
-    skip_cnts_it -= skip_cnts_noskip_cnt;
+    std::fill_n(skip_cnts_it -= skip_cnts_noskip_cnt, skip_cnts_noskip_cnt, 0);
     size_t bkt_ind = bkt_cnt_;
     if (bkt_cnt_ & 1)
       *--skip_cnts_it = size_getter_(--bkt_ind);
-    while (bkt_ind >= 2) {
-      size_t a = size_getter_(--bkt_ind), b = size_getter_(--bkt_ind);
-      *--skip_cnts_it = a + b;
-    }
+    while (bkt_ind >= 2)
+      *--skip_cnts_it = size_getter_(--bkt_ind) + size_getter_(--bkt_ind);
 
     // initialize the skip counts in the remaining levels in linear time
     assert(skip_cnts_it - skip_cnts_.begin() == (skip_cnts_.size() >> 1));
@@ -70,6 +77,12 @@ class ImmutableSkipList {
     }
     assert(skip_cnts_it == ++skip_cnts_.begin());
     *--skip_cnts_it = -1;               // sentinel used for searching
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#elif defined __clang__
+#pragma clang diagnostic pop
+#endif
   }
 
   // Returns the position of the global_index-th element,

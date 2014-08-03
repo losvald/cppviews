@@ -80,6 +80,15 @@ struct Pairwise<N0, Ns...> {
 template<typename... Args>
 void Ignore(Args&&... args) {}
 
+template<size_t N, typename T, T... Ts>
+struct GetNth {
+  static constexpr T values[sizeof...(Ts)] = {Ts...};
+  static const T value = values[N];
+};
+
+template<size_t N, typename T, T... Ts>
+constexpr T GetNth<N, T, Ts...>::values[sizeof...(Ts)];
+
 template<typename DataType>
 class DummyListIter
     : public DefaultIterator<DummyListIter<DataType>,
@@ -101,7 +110,7 @@ class DummyListIter
  protected:
   V_DEF_VIEW_ITER_IS_EQUAL(DataType, DummyListIter)
   template<typename DataType2>
-  bool IsEqual(const DummyListIter<DataType2>& other) const override {
+  bool IsEqual(const DummyListIter<DataType2>& other) const {
     return true;
   }
   void Increment() override {}
@@ -189,7 +198,7 @@ class List1DForwardIter
   template<class OuterIter2, typename DataType2>
   bool
   IsEqual(const List1DForwardIter<OuterIter2, ListType, DataType2>& other) const
-  override {
+  {
     return outer_cur_ == other.outer_cur_ &&
         (list_->size() == 0 || inner_cur_ == other.inner_cur_);
   }
@@ -254,7 +263,7 @@ class List1DIter
 
   template<class OuterIter2, typename DataType2>
   bool IsEqual(const List1DIter<OuterIter2, Indexer, DataType2>& other) const
-  override {
+  {
     return global_index_ == other.global_index_;
   }
 
@@ -463,7 +472,7 @@ template<typename T>
 struct SimpleListHelper<PortionBase<T> > {
   template<class Container>
   static void AppendEmpty(Container* c) {
-    c->template Append<DummyPortion<T> >();
+    c->template AppendDerived<DummyPortion<T> >();
   }
 };
 

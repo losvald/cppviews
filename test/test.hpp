@@ -1,6 +1,10 @@
 #ifndef CPPVIEWS_TEST_HPP_
 #define CPPVIEWS_TEST_HPP_
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wmissing-braces"
+#endif
+
 #include <gtest/gtest.h>
 
 #include <cstdlib>

@@ -38,12 +38,12 @@ class FakePointer {
   }
 
   friend inline bool operator==(const FakePointer& lhs,
-                                nullptr_t rhs) noexcept {
+                                std::nullptr_t rhs) noexcept {
     return false;
   }
 
   inline friend bool operator!=(const FakePointer& lhs,
-                                nullptr_t rhs) noexcept {
+                                std::nullptr_t rhs) noexcept {
     return true;
   }
 
