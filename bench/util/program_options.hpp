@@ -239,7 +239,7 @@ class ProgramOptions {
 
     struct Parser : public ValueParser {
       void SetValue(OptionBase* o0) const {
-        GetValues(static_cast<MultiOption*>(o0)->values_);
+        GetValues(&static_cast<MultiOption*>(o0)->values_);
       }
 
      protected:
