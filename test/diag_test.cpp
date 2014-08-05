@@ -119,6 +119,19 @@ TEST(DiagTest, SizeT3D) {
   EXPECT_EQ(-1, d_99_1(23, 6, 99999));  // max indexes (not on the diagonal)
 }
 
+TEST(DiagTest, SizeT2D1x1) {
+  static int default_val = -1;
+  Diag<int, size_t, 1, 1> d_1_1(&default_val, 3, 3);
+  EXPECT_EQ(1, d_1_1.block_size<0>());
+  EXPECT_EQ(1, d_1_1.block_size(1));
+  for (int i = 0; i < 3; ++i)
+    d_1_1(i, i) = i;
+
+  EXPECT_EQ(0, d_1_1(0, 0));
+  EXPECT_EQ(1, d_1_1(1, 1));
+  EXPECT_EQ(2, d_1_1(2, 2));
+}
+
 TEST(DiagTest, MakeList) {
   static int default_val = -1;
   auto d = MakeList(DiagTag<unsigned, 5, 8>(), &default_val, 10, 40);
