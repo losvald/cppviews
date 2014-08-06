@@ -95,8 +95,10 @@ class DummyListIter
                              std::random_access_iterator_tag,
                              DataType>,
       public View<DataType>::IteratorBase {
-  V_DEFAULT_ITERATOR_DERIVED_HEAD(DummyListIter);
+  V_DEFAULT_ITERATOR_DERIVED_HEAD(DummyListIter)
   template<typename> friend class DummyListIter;
+  using Enabler = typename DummyListIter::Enabler;
+
  public:
   explicit DummyListIter() {
   }
@@ -116,9 +118,9 @@ class DummyListIter
   void Increment() override {}
 
   template<typename DataType2>
-  typename DefaultIterator_::difference_type
+  typename DummyListIter::difference_type
   DistanceTo(const DummyListIter<DataType2>& to) const { return 0; }
-  void Advance(typename DefaultIterator_::difference_type n) {}
+  void Advance(typename DummyListIter::difference_type n) {}
 
   DataType& ref() const override {
     return *static_cast<DataType*>(nullptr);  // Undefined Behavior, but fast
@@ -171,6 +173,8 @@ class List1DForwardIter
       public View<DataType>::IteratorBase {
   V_DEFAULT_ITERATOR_DERIVED_HEAD(List1DForwardIter);
   template<class, class, class> friend class List1DForwardIter;
+  using typename List1DForwardIter::DefaultIterator_::Enabler;
+
  public:
   explicit List1DForwardIter(const OuterIter& outer_cur, const ListType& list)
       : outer_cur_(outer_cur),
@@ -235,6 +239,8 @@ class List1DIter
       public View<DataType>::IteratorBase {
   V_DEFAULT_ITERATOR_DERIVED_HEAD(List1DIter);
   template<class, class, class> friend class List1DIter;
+  using typename List1DIter::DefaultIterator_::Enabler;
+
  public:
   explicit List1DIter(const OuterIter& outer_begin, size_t index,
                       const Indexer& indexer)
@@ -278,7 +284,7 @@ class List1DIter
       ++inner_cur_;
   }
 
-  void Advance(typename DefaultIterator_::difference_type n) {
+  void Advance(typename List1DIter::difference_type n) {
     global_index_ += n;
 
     // TODO implement indexer_->bwd() and use it
@@ -295,7 +301,7 @@ class List1DIter
   }
 
   template<class OuterIter2, typename DataType2>
-  typename DefaultIterator_::difference_type
+  typename List1DIter::difference_type
   DistanceTo(const List1DIter<OuterIter2, Indexer, DataType2>& to) const {
     return to.global_index_ - global_index_;
   }

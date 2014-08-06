@@ -165,7 +165,7 @@ class EverySecondArrayIter
     : public DefaultIterator<EverySecondArrayIter<T>,
                              std::random_access_iterator_tag, T> {
   V_DEFAULT_ITERATOR_DERIVED_HEAD(EverySecondArrayIter);
-
+  using typename EverySecondArrayIter::DefaultIterator_::Enabler;
  public:
   EverySecondArrayIter(T* arr) : cur_(arr) {}
 
@@ -179,7 +179,7 @@ class EverySecondArrayIter
     cur_ += 2 * n;
   }
   template<typename T2>
-  typename DefaultIterator_::difference_type
+  typename EverySecondArrayIter::difference_type
   DistanceTo(const EverySecondArrayIter<T2>& to) const {
     return (to.cur_ - cur_) / 2;
   }

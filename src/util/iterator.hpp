@@ -8,12 +8,10 @@
 
 namespace detail {
 
-constexpr bool Or2(bool cond1, bool cond2) { return cond1 || cond2; }
-
 template<class Iter1, class Iter2, class Return>
 using EnableIfInteroperable = typename std::enable_if<
-  Or2(std::is_convertible<Iter1, Iter2>::value,
-      std::is_convertible<Iter2, Iter1>::value),
+  std::is_convertible<Iter1, Iter2>::value ||
+  std::is_convertible<Iter2, Iter1>::value,
   Return>::type;
 
 template<class InputIter>
@@ -170,16 +168,14 @@ using IndirectIterator = TransformedIterator<
 //                                         T> {
 //   V_DEFAULT_ITERATOR_DERIVED_HEAD(Iterator);
 //  public:
-//   Iterator(/* main ctor */);
+//   Iterator(/* no-arg ctor */);
 //   Iterator(const Iterator<T2>& other,
 //            EnableIfIterConvertible<T2, T, Enabler> = Enabler()) const;
-//            // for convenience, V_DEFAULT_ITERATOR_DISABLE_NONCONVERTIBLE(T2)
-//            // can be put as a second parameter, but it's less readable
 //  protected:
 //   void Increment();
 //   template<class T2>
 //   bool IsEqual(const Iterator<T2>& other) const;
-//   typename DefaultIterator_::reference ref() const;
+//   typename Iterator::reference ref() const;
 //   ...
 // };
 template<class Derived,
@@ -189,17 +185,9 @@ template<class Derived,
 class DefaultIterator : public std::iterator<Category, V, Distance> {
 
 #define V_DEFAULT_ITERATOR_DERIVED_HEAD(Iter)                           \
-  typedef typename Iter::DefaultIterator_ DefaultIterator_;             \
-  typedef typename DefaultIterator_::Enabler Enabler;                   \
   template<class, class, class, class> friend class ::DefaultIterator;
 
-#define V_DEFAULT_ITERATOR_DISABLE_NONCONVERTIBLE(FromValue)            \
-  typename DefaultIterator_::template                                   \
-  EnablerIfConvertibleFrom<T2>::type = typename DefaultIterator_::Enabler()
-
  public:
-  typedef DefaultIterator<Derived, Category, V> DefaultIterator_;
-
   V& operator*() const {
     return this->derived().ref();
   }
@@ -235,6 +223,7 @@ class DefaultIterator : public std::iterator<Category, V, Distance> {
   using EnablerIfConvertibleFrom = typename std::enable_if<
     std::is_convertible<T2*, V*>::value,
     Enabler>;
+  typedef DefaultIterator DefaultIterator_;
 
   Derived& derived() { return *static_cast<Derived*>(this); }
   const Derived& derived() const { return *static_cast<const Derived*>(this); }

@@ -308,13 +308,16 @@ class PortionBaseIter
                              T> {
   V_DEFAULT_ITERATOR_DERIVED_HEAD(PortionBaseIter);
   template<class, class, class, class> friend class DefaultIterator;
+
  public:
   explicit PortionBaseIter(const PortionBase<T>& p, size_t index)
       : p_(&p),
         index_(index) {}
   template<typename T2>
   PortionBaseIter(const PortionBaseIter<T2>& other,
-                  V_DEFAULT_ITERATOR_DISABLE_NONCONVERTIBLE(T2))
+                  EnableIfIterConvertible<T2, T,
+                  typename PortionBaseIter::Enabler> =
+                  typename PortionBaseIter::Enabler())
       : p_(other.p_),
         index_(other.index_) {}
   PortionBaseIter() = default;
@@ -322,11 +325,11 @@ class PortionBaseIter
  protected:
   void Increment() { ++index_; }
   void Decrement() { --index_; }
-  void Advance(typename DefaultIterator_::difference_type distance) {
+  void Advance(typename PortionBaseIter::difference_type distance) {
     index_ += distance;
   }
   template<typename T2>
-  typename DefaultIterator_::difference_type DistanceTo(
+  typename PortionBaseIter::difference_type DistanceTo(
       const PortionBaseIter<T2>& it) const {
     return it.index_ - index_;
   }
@@ -334,7 +337,7 @@ class PortionBaseIter
   bool IsEqual(const PortionBaseIter<T2>& other) const {
     return index_ == other.index_;
   }
-  typename DefaultIterator_::reference ref() const { return p_->get(index_); }
+  typename PortionBaseIter::reference ref() const { return p_->get(index_); }
 
  private:
   const PortionBase<T>* p_;
@@ -353,7 +356,9 @@ class SingletonPortionIter
         end_(end) {}
   template<typename T2>
   SingletonPortionIter(const SingletonPortionIter<T2>& other,
-                       V_DEFAULT_ITERATOR_DISABLE_NONCONVERTIBLE(T2))
+                       EnableIfIterConvertible<T2, T,
+                       typename SingletonPortionIter::Enabler> =
+                       typename SingletonPortionIter::Enabler())
       : datum_(other.datum_),
         end_(other.end_) {}
   SingletonPortionIter() = default;
@@ -361,12 +366,12 @@ class SingletonPortionIter
  protected:
   void Increment() { end_ = true; }
   void Decrement() { end_ = false; }
-  void Advance(typename DefaultIterator_::difference_type distance) {
+  void Advance(typename SingletonPortionIter::difference_type distance) {
     // avoid branching by using bitwise operators
     end_ = (end_ & (distance >= 0)) | (distance > 0);
   }
   template<typename T2>
-  typename DefaultIterator_::difference_type DistanceTo(
+  typename SingletonPortionIter::difference_type DistanceTo(
       const SingletonPortionIter<T2>& it) const {
     return it.end_ - end_;
   }
@@ -374,7 +379,7 @@ class SingletonPortionIter
   bool IsEqual(const SingletonPortionIter<T2>& other) const {
     return end_ == other.end_;
   }
-  typename DefaultIterator_::reference ref() const { return *datum_; }
+  typename SingletonPortionIter::reference ref() const { return *datum_; }
 
  private:
   template<typename> friend class SingletonPortionIter;
