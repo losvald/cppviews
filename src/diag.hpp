@@ -120,6 +120,12 @@ constexpr bool SameSize(const Size1& size1, const Size2& size2,
   return (size1 == size2) & SameSize(size2, sizes...);
 }
 
+template<typename Size, Size... sizes>
+constexpr bool IsSimpleDiagBlock() {
+  using namespace list_detail;
+  return GetNth<0, Size, sizes...>::value == 1 && SameSize(sizes...);
+}
+
 }  // namespace detail
 
 // For the MakeList overload, we need to somehow encode the block sizes.
@@ -140,7 +146,9 @@ class List<cpp14::integer_sequence<BlockSize, block_sizes...>,
            kListOpVector,
            DataType,
            void,
-           typename std::enable_if<dims == sizeof...(block_sizes)>::type>
+           typename std::enable_if<(
+               dims == sizeof...(block_sizes) &&
+               !detail::IsSimpleDiagBlock<BlockSize, block_sizes...>())>::type>
     : public ListBase<DataType, dims> {
   typedef ListBase<DataType, dims> ListBaseType;
   struct Disabler {};  // used for SFINAE (to disable constructors)
@@ -234,6 +242,86 @@ class List<cpp14::integer_sequence<BlockSize, block_sizes...>,
   }
 
   mutable std::vector<DiagBlockType> blocks_;
+  DataType* default_value_;
+};
+
+// specialization for diagonal with block sizes all 1
+
+template<typename DataType, unsigned dims, typename BlockSize,
+         BlockSize... block_sizes>
+class List<cpp14::integer_sequence<BlockSize, block_sizes...>,
+           dims,
+           kListOpVector,
+           DataType,
+           void,
+           typename std::enable_if<(
+               dims == sizeof...(block_sizes) &&
+               detail::IsSimpleDiagBlock<BlockSize, block_sizes...>())>::type>
+    : public ListBase<DataType, dims> {
+  typedef ListBase<DataType, dims> ListBaseType;
+  struct Disabler {};  // used for SFINAE (to disable constructors)
+
+  static_assert(dims >= 2, "Insufficient number of dimensions");
+
+ public:
+  template<typename... Sizes>
+  List(DataType* default_value,
+       typename std::conditional<1 + sizeof...(Sizes) == dims,
+       size_t, Disabler>::type size,
+       Sizes... sizes)
+      : ListBaseType(size, sizes...),
+        blocks_(detail::MinSize(size, sizes...)),
+        default_value_(default_value) {}
+
+  List(size_t block_count, DataType* default_value = nullptr)
+      : ListBaseType((block_count * block_sizes)...),
+        blocks_(block_count),
+        default_value_(default_value) {}
+
+  // used by MakeList
+  template<typename... Args>
+  List(DiagTag<BlockSize, block_sizes...>, Args&&... args)
+      : List(std::forward<Args>(args)...) {}
+
+  friend List MakeList(List&& list) { return std::forward<List>(list); }
+
+  template<typename... Indexes>
+  DataType& operator()(const Indexes&... indexes) const {
+    return get0(cpp14::index_sequence_for<Indexes...>(), indexes...);
+  }
+
+  DataType& get(typename ListBaseType::SizeArray&& indexes) const override {
+    return get0(indexes, cpp14::make_index_sequence<dims>());
+  }
+
+  typename View<DataType>::Iterator iterator_begin() const override {
+    // TODO: implement
+    return *reinterpret_cast<typename View<DataType>::Iterator*>(NULL);
+  }
+
+  template<unsigned dim>
+  static constexpr BlockSize block_size() { return 1; }
+
+  BlockSize block_size(unsigned dim) const { return 1; }
+
+  size_t block_count() const { return blocks_.size(); }
+
+ private:
+  template<size_t... Is>
+  DataType& get0(const typename ListBaseType::SizeArray& indexes,
+                 cpp14::index_sequence<Is...>) const {
+    return this->operator()(std::get<Is>(indexes)...);
+  }
+
+  template<size_t I, size_t... Is, typename Index, typename... Indexes>
+  DataType& get0(cpp14::index_sequence<I, Is...>, const Index& index,
+                 const Indexes&... indexes) const {
+    if (!detail::SameSize(index, indexes...))
+      return *default_value_;
+    return blocks_[index];
+  }
+
+  mutable std::vector<DataType> blocks_;
   DataType* default_value_;
 };
 
