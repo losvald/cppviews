@@ -2,8 +2,8 @@
 #define CPPVIEWS_SRC_VIEW_HPP_
 
 #include <iterator>
+#include <limits>
 #include <memory>
-#include <numeric>
 
 #include <cstddef>
 
