@@ -1,9 +1,11 @@
 #ifndef CPPVIEWS_SRC_UTIL_BIT_TWIDDLING_HPP_
 #define CPPVIEWS_SRC_UTIL_BIT_TWIDDLING_HPP_
 
+#include <limits>
+#include <type_traits>
+
 #include <climits>
 #include <cstddef>
-#include <type_traits>
 
 namespace {
 
@@ -59,5 +61,12 @@ constexpr IsPow2(T x) { return (x & (x - 1)) == 0; }
 template<typename T>
 typename std::enable_if<std::is_unsigned<T>::value, bool>::type
 constexpr IsPow2Zero(T x) { return x && IsPow2(x); }
+
+// Checks whether the conversion to the same-size signed type is less than 0.
+template<typename T>
+typename std::enable_if<std::is_unsigned<T>::value, T>::type
+constexpr IsSignedNegative(const T& x) {
+  return x & (T(1) << (std::numeric_limits<T>::digits - 1));
+}
 
 #endif  /* CPPVIEWS_SRC_UTIL_BIT_TWIDDLING_HPP_ */

@@ -1,5 +1,7 @@
 #include "bit_twiddling.hpp"
 
+#include <cstdint>
+
 template<typename T>
 class BitTwiddlingInlineTest : public BitTwiddlingTestBase<T> {};
 
@@ -74,4 +76,19 @@ TEST(BitTwiddlingTest, FindFirstSetUnsignedShort) {
     for (unsigned short i = 1 << (b - 1); i < (1 << b); ++i)
       ASSERT_EQ(b, FindFirstSet(i)) << "Failed for: " << i;
   }
+}
+
+TEST(BitTwiddlingTest, IsSignedNegative) {
+  EXPECT_FALSE(IsSignedNegative(static_cast<std::uint8_t>(17)));
+  EXPECT_FALSE(IsSignedNegative(static_cast<std::uint8_t>(0)));
+  EXPECT_FALSE(IsSignedNegative(static_cast<std::uint8_t>(127)));
+  EXPECT_TRUE(IsSignedNegative(static_cast<std::uint8_t>(128)));
+  EXPECT_TRUE(IsSignedNegative(static_cast<std::uint8_t>(197)));
+  EXPECT_TRUE(IsSignedNegative(static_cast<std::uint8_t>(255)));
+
+  EXPECT_FALSE(IsSignedNegative(static_cast<std::uint32_t>(987654321)));
+  EXPECT_TRUE(IsSignedNegative(static_cast<std::uint32_t>(2314567890)));
+
+  EXPECT_FALSE(IsSignedNegative(false));
+  EXPECT_TRUE(IsSignedNegative(true));
 }
