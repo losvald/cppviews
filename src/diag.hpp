@@ -100,26 +100,6 @@ class DiagBlock<T, BlockSize, block_size> {
   NativeType b_;
 };
 
-template<typename Size>
-constexpr Size MinSize(Size&& size) { return std::forward<Size>(size); }
-
-template<typename Size1, typename Size2, typename... Sizes>
-constexpr typename std::common_type<Size1, Size2, Sizes...>::type
-MinSize(Size1&& size1, Size2&& size2, Sizes&&... sizes) {
-  return size1 < size2
-                 ? MinSize(size1, std::forward<Sizes>(sizes)...)
-                 : MinSize(size2, std::forward<Sizes>(sizes)...);
-}
-
-template<typename Size>
-constexpr bool SameSize(const Size& size) { return true; }
-
-template<typename Size1, typename Size2, typename... Sizes>
-constexpr bool SameSize(const Size1& size1, const Size2& size2,
-                        const Sizes&... sizes) {
-  return (size1 == size2) & SameSize(size2, sizes...);
-}
-
 template<typename Size, Size... sizes>
 constexpr bool IsSimpleDiagBlock() {
   using namespace list_detail;
@@ -243,8 +223,8 @@ class V_LIST_TYPE
   template<size_t... Is, typename... Sizes>
   static size_t ComputeBlockCount(cpp14::index_sequence<Is...>, Sizes... sizes)
   {
-    return detail::MinSize(((sizes + block_sizes - 1) /
-                            std::get<Is>(dim_scalers()))...);
+    return list_detail::MinSize(((sizes + block_sizes - 1) /
+                                 std::get<Is>(dim_scalers()))...);
   }
 
   // use static singleton accessor to avoid a global definition
@@ -259,8 +239,8 @@ class V_LIST_TYPE
   DataType& get0(cpp14::index_sequence<I, Is...>, const Index& index,
                  const Indexes&... indexes) const {
     typename decltype(blocks_)::size_type block_index;
-    if (!detail::SameSize(block_index = index / std::get<I>(dim_scalers()),
-                          (indexes / std::get<Is>(dim_scalers()))...))
+    if (!list_detail::SameSize(block_index = index / std::get<I>(dim_scalers()),
+                               (indexes / std::get<Is>(dim_scalers()))...))
       return *default_value_;
 
     return blocks_[block_index](
@@ -298,7 +278,7 @@ class V_LIST_TYPE
   template<typename... Sizes>
   List(DataType* default_value, size_t size, Sizes... sizes)
       : DiagHelper(size, sizes...),
-        blocks_(detail::MinSize(size, sizes...)),
+        blocks_(list_detail::MinSize(size, sizes...)),
         default_value_(default_value) {}
 
   List(size_t block_count, DataType* default_value = nullptr)
@@ -324,7 +304,7 @@ class V_LIST_TYPE
   template<size_t I, size_t... Is, typename Index, typename... Indexes>
   DataType& get0(cpp14::index_sequence<I, Is...>, const Index& index,
                  const Indexes&... indexes) const {
-    if (!detail::SameSize(index, indexes...))
+    if (!list_detail::SameSize(index, indexes...))
       return *default_value_;
     return blocks_[index];
   }

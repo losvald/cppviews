@@ -48,6 +48,26 @@ size_t SizeSum(const Container& subcontainers) {
   return sum;
 }
 
+template<typename Size>
+constexpr Size MinSize(Size&& size) { return std::forward<Size>(size); }
+
+template<typename Size1, typename Size2, typename... Sizes>
+constexpr typename std::common_type<Size1, Size2, Sizes...>::type
+MinSize(Size1&& size1, Size2&& size2, Sizes&&... sizes) {
+  return size1 < size2
+                 ? MinSize(size1, std::forward<Sizes>(sizes)...)
+                 : MinSize(size2, std::forward<Sizes>(sizes)...);
+}
+
+template<typename Size>
+constexpr bool SameSize(Size&&) { return true; }
+
+template<typename Size1, typename Size2, typename... Sizes>
+constexpr bool SameSize(const Size1& size1, const Size2& size2, Sizes&&... sizes) {
+  using namespace std;
+  return (size1 == size2) & SameSize(size1, forward<Sizes>(sizes)...);
+}
+
 template <typename... Ns>
 struct Pairwise;
 
@@ -164,6 +184,23 @@ class LinearizedMonotonicIndexer {
 };
 
 constexpr bool And2(bool cond1, bool cond2) { return cond1 && cond2; }
+
+// Checks whether the unlinearized position "pos" is in the range [0, to_index).
+template<typename Size, Size size, typename LastIndex>
+constexpr bool WithinLast(const size_t& pos, LastIndex&& to_index) {
+  return pos < to_index;
+}
+
+// Checks whether the unlinearized position "pos" is in the range
+// (0, ...) (inclusive) to (to_index, to_indexes...) (exclusive).
+template<typename Size, Size size, Size... sizes, typename Index,
+         typename... Indexes>
+constexpr bool WithinLast(const size_t& pos, Index&& to_index,
+                          Indexes&&... to_indexes) {
+  return WithinLast<Size, sizes...>(pos / size,
+                                    std::forward<Indexes>(to_indexes)...) &
+      (pos - pos / size * size < to_index);
+}
 
 template<class OuterIter, class ListType, typename DataType>
 class List1DForwardIter

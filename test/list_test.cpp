@@ -6,6 +6,55 @@
 #include <vector>
 #include <type_traits>
 
+TEST(ListMetatest, WithinLast) {
+  using namespace std::placeholders;
+  using namespace list_detail;
+
+  {
+    //   0  1  2
+    // 1 0  1| 2
+    // 2 3  4| 5
+    // ------+
+    // 3 6  7  8
+    // 4 9 10 11
+    auto f = [](size_t pos) {
+      return WithinLast<unsigned, 3, 4>(pos, 2, 2);
+    };
+    EXPECT_TRUE(f(0));
+    EXPECT_TRUE(f(1));
+    EXPECT_TRUE(f(3));
+    EXPECT_TRUE(f(4));
+    EXPECT_FALSE(f(2));
+    EXPECT_FALSE(f(5));
+    EXPECT_FALSE(f(7));
+    EXPECT_FALSE(f(9));
+  }
+
+  {
+    auto f = [](size_t pos) {
+      return WithinLast<unsigned, 10, 10, 10, 10>(pos, 3, 7, 1, 9);
+    };
+    EXPECT_TRUE(f(50));
+    EXPECT_FALSE(f(1234));
+    EXPECT_FALSE(f(9173));
+    EXPECT_FALSE(f(8073));
+    EXPECT_TRUE(f(8062));
+    EXPECT_FALSE(f(8162));
+    EXPECT_FALSE(f(3719));
+    EXPECT_FALSE(f(2608));
+    EXPECT_TRUE(f(0));
+  }
+
+  {
+    EXPECT_TRUE((WithinLast<size_t, 13>(0, 11)));
+    EXPECT_TRUE((WithinLast<size_t, 13>(5, 11)));
+    EXPECT_TRUE((WithinLast<size_t, 13>(6, 11)));
+    EXPECT_TRUE((WithinLast<size_t, 13>(10, 11)));
+    EXPECT_FALSE((WithinLast<size_t, 13>(11, 11)));
+    EXPECT_FALSE((WithinLast<size_t, 13>(123456, 11)));
+  }
+}
+
 TEST(ListTest, Dummy) {
   DummyList<int, 3> dl;
   typedef ListBase<int, 3>::SizeArray SizeArray;
