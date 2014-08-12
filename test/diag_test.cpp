@@ -65,7 +65,7 @@ TEST(DiagTest, ConstructorBlockCount4D) {
   EXPECT_EQ(decltype(d_7_4_1_3)::SizeArray({35, 20, 5, 15}), d_7_4_1_3.sizes());
 }
 
-TEST(DiagTest, Unsigned2D) {
+TEST(DiagTest, Unsigned2DLastNotFull) {
   static double default_val = 0;
   Diag<double, unsigned, 2, 3> d_2_3(&default_val, 10, 10);
   EXPECT_EQ(2, d_2_3.block_size<0>());
@@ -91,12 +91,49 @@ TEST(DiagTest, Unsigned2D) {
   EXPECT_EQ(10, d_2_3(3, 4));
   EXPECT_EQ(11, d_2_3(3, 5));
 
+  // validate forward iteration over block values
+  auto vit = d_2_3.values().begin();
+  EXPECT_EQ(0, *vit++);
+  EXPECT_EQ(1, *vit++);
+  EXPECT_EQ(2, *vit++);
+  for (int i = 0; i < 3; ++i)  // check the rest of the 1st block
+    EXPECT_EQ(3 + i, *vit++);
+  auto vit2 = d_2_3.values().begin();
+  for (int i = 0; i < 6; ++i) // advance to the beginning of the 2nd block
+    ++vit2;
+  EXPECT_EQ(vit, vit2);
+  for (int i = 6; i < 12; ++i) // advance to the beginning of the 3rd block
+    EXPECT_EQ(i, *vit2++) << "*(d_2_3.values().begin() + " << i << ")";
+  for (int i = 12; i < 18; ++i)  // advance to the last, non-full block
+    ++vit2;
+  d_2_3(6, 9) = 123;
+  d_2_3(7, 9) = 456;
+
+  EXPECT_EQ(123, *vit2++);
+  EXPECT_EQ(456, *vit2++);
+  EXPECT_EQ(d_2_3.values().end(), vit2);
+  EXPECT_EQ(20, d_2_3.values().size());
+
   // validate changes to the default value
   EXPECT_EQ(0, d_2_3(2, 2));
   d_2_3(2, 2) = 22;
   EXPECT_EQ(22, d_2_3(2, 2));
   d_2_3(4, 1) = 41;  // change the default value by access to another element
   EXPECT_EQ(41, d_2_3(2, 2));
+}
+
+TEST(DiagTest, Unsigned2DSingleFullBlock) {
+  Diag<double, unsigned, 4, 1> d_4_1(nullptr, 4, 1);
+  for (unsigned i = 0; i < 4; ++i) d_4_1(i, 0) = 10 * (i + 1);
+
+  // validate forward iteration over block values
+  auto vit = d_4_1.values().begin();
+  EXPECT_EQ(10, *vit++);
+  EXPECT_EQ(20, *vit++);
+  EXPECT_EQ(30, *vit++);
+  EXPECT_EQ(40, *vit++);
+  EXPECT_EQ(d_4_1.values().end(), vit);
+  EXPECT_EQ(4, d_4_1.values().size());
 }
 
 TEST(DiagTest, SizeT3D) {
@@ -130,6 +167,16 @@ TEST(DiagTest, SizeT2D1x1) {
   EXPECT_EQ(0, d_1_1(0, 0));
   EXPECT_EQ(1, d_1_1(1, 1));
   EXPECT_EQ(2, d_1_1(2, 2));
+
+  // validate forward iteration over block values
+  auto vit = d_1_1.values().begin();
+  EXPECT_EQ(0, *vit++);
+  EXPECT_EQ(1, *vit);
+  EXPECT_EQ(2, *++vit);
+  EXPECT_NE(d_1_1.values().end(), vit++);
+  EXPECT_EQ(d_1_1.values().end(), vit);
+  EXPECT_EQ(3, d_1_1.values().size());
+
 }
 
 TEST(DiagTest, MakeList) {
