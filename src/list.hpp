@@ -25,12 +25,12 @@ namespace list_detail {
 // a variadic function that is inlined as (size1 * ... * sizeN) at compile time
 template<typename Size, typename... Sizes>
 typename std::enable_if<std::is_same<Size, size_t>::value, Size>::type
-constexpr SizeProduct(Size size, Sizes... sizes) {
-  return size * SizeProduct<Sizes...>(sizes...);
+constexpr SizeProduct(const Size& size, Sizes&&... sizes) {
+  return size * SizeProduct<Sizes...>(std::forward<Sizes>(sizes)...);
 }
 
 template<>
-size_t constexpr SizeProduct<size_t>(size_t size) { return size; }
+size_t constexpr SizeProduct<size_t>(const size_t& size) { return size; }
 
 template<typename T>
 constexpr size_t ZeroSize() {
@@ -63,7 +63,8 @@ template<typename Size>
 constexpr bool SameSize(Size&&) { return true; }
 
 template<typename Size1, typename Size2, typename... Sizes>
-constexpr bool SameSize(const Size1& size1, const Size2& size2, Sizes&&... sizes) {
+constexpr bool SameSize(const Size1& size1, const Size2& size2,
+                        Sizes&&... sizes) {
   using namespace std;
   return (size1 == size2) & SameSize(size1, forward<Sizes>(sizes)...);
 }
@@ -84,13 +85,14 @@ struct Pairwise<N0, Ns...> {
   static typename std::result_of<F(N0, Ns...)>::type
   Sum(F f, N0 num0, Ns... nums, const T& a) {
     return Pairwise<N0, Ns...>::template
-        Sum0<typename std::result_of<F(N0, Ns...)>::type>(f, num0, nums..., a);
+        Sum0<typename std::result_of<F(N0, Ns...)>::type>(
+            f, std::move(num0), std::forward<Ns>(nums)..., a);
   }
 
   template <typename R, typename F, typename T, typename... Args>
-  static R Sum0(F f, N0 num0, Ns... nums, const T& a, Args&&... sums) {
+  static R Sum0(F f, N0&& num0, Ns&&... nums, const T& a, Args&&... sums) {
     return Pairwise<Ns...>::template
-        Sum0<R>(f, nums..., a, sums...,
+        Sum0<R>(f, std::forward<Ns>(nums)..., a, sums...,
                 num0 + static_cast<N0>(std::get<sizeof...(Args)>(a)));
   }
 };
@@ -174,7 +176,7 @@ class LinearizedMonotonicIndexer {
   LinearizedMonotonicIndexer(const SubviewContainer& c) :
       bsg_(c),
       fwd_(c.size(), bsg_) {}
-  size_t bucket_size(size_t index) const { return bsg_(index); }
+  size_t bucket_size(const size_t& index) const { return bsg_(index); }
   const ImmutableSkipListType& fwd() const { return fwd_; }
  private:
   ListSizeGetter<SubviewContainer, dim> bsg_;
@@ -279,7 +281,7 @@ class List1DIter
   using typename List1DIter::DefaultIterator_::Enabler;
 
  public:
-  explicit List1DIter(const OuterIter& outer_begin, size_t index,
+  explicit List1DIter(const OuterIter& outer_begin, const size_t& index,
                       const Indexer& indexer)
       : indexer_(&indexer),
         outer_begin_(outer_begin),
@@ -379,10 +381,10 @@ class ListBase : public View<T> {
   static constexpr unsigned kDims = dims;
 
   template<typename... Sizes>
-  ListBase(size_t size,  // TODO: use SFINAE as below
-           // typename std::conditional<1 + sizeof...(Sizes) == dims,
-           // size_t, Disabler>::type size,
-           Sizes... sizes) :
+  ListBase(const size_t& size,  // TODO: use SFINAE as below
+           // const typename std::conditional<1 + sizeof...(Sizes) == dims,
+           // size_t, Disabler>::type& size,
+           Sizes&&... sizes) :
       View<T>(list_detail::SizeProduct(size, static_cast<size_t>(sizes)...)),
       sizes_{{size, static_cast<size_t>(sizes)...}},
     offsets_{{list_detail::ZeroSize<Sizes>()...}} {
@@ -495,7 +497,8 @@ class List<void, dims, kListNoFlags, void, T> : public ListBase<T, dims> {
  private:
   template<size_t... Is>
   List(cpp14::index_sequence<Is...>)
-  : ListBaseType(list_detail::ZeroSize<decltype(Is)>()...) {}
+  : ListBaseType(std::forward<decltype(Is)>(
+        list_detail::ZeroSize<decltype(Is)>())...) {}
 };
 
 // specialization for 1D lists
@@ -570,11 +573,11 @@ class List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>
     container_.Erase(++container_.begin(), container_.end());
   }
 
-  inline void set(const DataType& value, size_t index) const {
+  inline void set(const DataType& value, const size_t& index) const {
     const_cast<DataType&>(this->get(index)) = value;
   }
 
-  inline const DataType& get(size_t index) const {
+  inline const DataType& get(const size_t& index) const {
     auto pos = indexer_.fwd().get(index);
     return container_[pos.first].get(pos.second);
   }
@@ -652,7 +655,7 @@ class List<void, dims, kListNoFlags, Accessor, T>
     Iterator(const Iterator&) = default;
     Iterator(Iterator&&) = default;
     template<typename... Sizes>
-    Iterator(const List* list, size_t index, Sizes... indexes)
+    Iterator(const List* list, const size_t& index, Sizes&&... indexes)
         : list_(list),
           indexes_{{index, static_cast<size_t>(indexes)...}} {
     }
@@ -682,9 +685,9 @@ class List<void, dims, kListNoFlags, Accessor, T>
     T& ref() const { return ref(cpp14::make_index_sequence<dims>()); }
 
    private:
-    template<size_t... Indexes>
-    T& ref(cpp14::index_sequence<Indexes...>) const {
-      return (*list_)(std::get<Indexes>(indexes_)...);
+    template<size_t... Is>
+    T& ref(cpp14::index_sequence<Is...>) const {
+      return (*list_)(std::get<Is>(indexes_)...);
     }
 
     const List* list_;
@@ -693,22 +696,22 @@ class List<void, dims, kListNoFlags, Accessor, T>
 
   template<typename... Sizes>
   List(Accessor accessor,
-       typename std::conditional<1 + sizeof...(Sizes) == dims,
-       size_t, Disabler>::type size,
-       Sizes... sizes)
-      : ListBase<T, dims>(size, sizes...),
+       const typename std::conditional<1 + sizeof...(Sizes) == dims,
+       size_t, Disabler>::type& size,
+       Sizes&&... sizes)
+      : ListBase<T, dims>(size, std::forward<Sizes>(sizes)...),
         accessor_(accessor),
         sizes_{{size, static_cast<size_t>(sizes)...}},
     offsets_{{list_detail::ZeroSize<Sizes>()...}} {}
 
   template<typename... Sizes>
-  List(typename std::conditional<1 + sizeof...(Sizes) == dims,
-       size_t, Disabler>::type size,
-       Sizes... sizes)
-      : List(Accessor(), size, sizes...) {}
+  List(const typename std::conditional<1 + sizeof...(Sizes) == dims,
+       size_t, Disabler>::type& size,
+       Sizes&&... sizes)
+      : List(Accessor(), size, std::forward<Sizes>(sizes)...) {}
 
   template<typename... Subs>
-  List(Accessor accessor, Sub sub, Subs... subs)
+  List(Accessor accessor, const Sub& sub, Subs&&... subs)
       : ListBase<T, dims>(list_detail::SizeProduct(
           sub.second, static_cast<Sub>(subs).second...)),
         accessor_(accessor),
@@ -719,8 +722,8 @@ class List<void, dims, kListNoFlags, Accessor, T>
     }
 
   template<typename... Subs>
-  List(const List& list, Sub sub, Subs... subs)
-      : List(list.accessor_, sub, subs...) {
+  List(const List& list, const Sub& sub, Subs&&... subs)
+      : List(list.accessor_, sub, std::forward<Subs>(subs)...) {
     // TODO make the constructor trivial by expanding offset sum at compile time
     auto it = list.offsets_.cbegin();
     for (auto& offset : offsets_)
@@ -733,22 +736,23 @@ class List<void, dims, kListNoFlags, Accessor, T>
   // List() = default;
 
   template<typename... Indexes>
-  T& operator()(Indexes... indexes) const {
-    return *(list_detail::Pairwise<Indexes...>::template
-             Sum(accessor_, indexes..., offsets_));
+  T& operator()(Indexes&&... indexes) const {
+    return *(list_detail::Pairwise<
+             typename std::remove_reference<Indexes>::type...>::template
+             Sum(accessor_, std::forward<Indexes>(indexes)..., offsets_));
   }
 
   template<typename... Indexes>
-  const T& get(Indexes... indexes) const {
-    return this->operator()(indexes...);
+  const T& get(Indexes&&... indexes) const {
+    return this->operator()(std::forward<Indexes>(indexes)...);
   }
   template<typename... Indexes>
-  void set(const T& value, Indexes... indexes) const {
-    this->operator()(indexes...) = value;
+  void set(const T& value, Indexes&&... indexes) const {
+    this->operator()(std::forward<Indexes>(indexes)...) = value;
   }
 
   T& get(SizeArray&& indexes) const override {
-    return this->get0(indexes, cpp14::make_index_sequence<dims>());
+    return this->get0(std::move(indexes), cpp14::make_index_sequence<dims>());
   }
 
   Accessor& accessor() { return accessor_; }
@@ -773,20 +777,19 @@ class List<void, dims, kListNoFlags, Accessor, T>
   }
 
  private:
-  template<size_t... Indexes>
-  T& get0(const SizeArray& indexes, cpp14::index_sequence<Indexes...>) const {
-    return this->operator()(std::get<Indexes>(indexes)...);
+  template<size_t... Is>
+  T& get0(const SizeArray& indexes, cpp14::index_sequence<Is...>) const {
+    return this->operator()(std::get<Is>(std::move(indexes))...);
   }
 
-  template<size_t... Indexes>
-  Iterator* begin(cpp14::index_sequence<Indexes...>) const {
-    return new Iterator(this, list_detail::ZeroSize<Indexes>()...);
+  template<size_t... Is>
+  Iterator* begin(cpp14::index_sequence<Is...>) const {
+    return new Iterator(this, list_detail::ZeroSize<Is>()...);
   }
 
-  template<size_t Index, size_t... Indexes>
-  Iterator* end(cpp14::index_sequence<Index, Indexes...>) const {
-    return new Iterator(this, sizes_.front(),
-                        list_detail::ZeroSize<Indexes>()...);
+  template<size_t I, size_t... Is>
+  Iterator* end(cpp14::index_sequence<I, Is...>) const {
+    return new Iterator(this, sizes_.front(), list_detail::ZeroSize<Is>()...);
   }
 
   Accessor accessor_;
@@ -800,22 +803,22 @@ constexpr SimpleList<P> MakeList(PortionVector<T, P>&& pv) {
 }
 
 template<class Accessor, typename... Sizes>
-constexpr auto MakeList(Accessor a, size_t size, Sizes... sizes)
+constexpr auto MakeList(Accessor a, const size_t& size, Sizes&&... sizes)
 #define V_LIST_TYPE                                                       \
     ImplicitList<typename                                               \
                  std::remove_pointer<decltype(a(size, sizes...))>       \
                  ::type, (1 + sizeof...(Sizes)), Accessor>
-    -> V_LIST_TYPE { return V_LIST_TYPE(a, size, sizes...); }
+    -> V_LIST_TYPE {                                            \
+  return V_LIST_TYPE(a, size, std::forward<Sizes>(sizes)...); }
 #undef V_LIST_TYPE
 
-
 template<class Accessor, typename... Subs>
-constexpr auto MakeList(Accessor a, Sub sub, Subs... subs)
+constexpr auto MakeList(Accessor a, const Sub& sub, Subs&&... subs)
 #define V_LIST_TYPE                                                     \
     ImplicitList<typename                                               \
                  std::remove_pointer<decltype(a(sub.first, subs.first...))> \
                  ::type, (1 + sizeof...(Subs)), Accessor>
-    -> V_LIST_TYPE { return V_LIST_TYPE(a, sub, subs...); }
+    -> V_LIST_TYPE { return V_LIST_TYPE(a, sub, std::forward<Subs>(subs)...); }
 #undef V_LIST_TYPE
 
 struct ListFactory {

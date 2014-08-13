@@ -96,9 +96,9 @@ class List<
   template<typename... Sizes>
   List(ListVector<SublistType>&& lists, DataType* default_value,
        std::vector<SizeArray>&& nesting_offsets,
-       typename std::conditional<1 + sizeof...(Sizes) == dims,
-       size_t, Disabler>::type size, Sizes... sizes)
-      : ListBaseType(size, sizes...),
+       const typename std::conditional<1 + sizeof...(Sizes) == dims,
+       size_t, Disabler>::type& size, Sizes&&... sizes)
+      : ListBaseType(size, std::forward<Sizes>(sizes)...),
         lists_(std::move(lists)),
         default_value_(default_value),
         nesting_offsets_(InsertDummies(lists_, this->sizes_,
@@ -180,7 +180,7 @@ class List<
   }
 
   template<typename... Indexes>
-  DataType& operator()(const Indexes&... indexes) const {
+  DataType& operator()(Indexes&&... indexes) const {
     // TODO: terribly inefficient
     return get(SizeArray{static_cast<size_t>(indexes)...});
   }
@@ -291,11 +291,10 @@ class UniformlyChainedListVector
   typedef ListVector<SublistType> ListVectorType;
   typedef typename ListVectorType::SizeType SizeType;
  public:
+  using ChainedListVectorType::ChainedListVectorType;
+
   UniformlyChainedListVector(ListVectorType&& sv)
       : ChainedListVectorType(std::move(sv)) {}
-  UniformlyChainedListVector(SizeType capacity)
-      : ChainedListVectorType(capacity) {}
-  UniformlyChainedListVector() = default;
   static constexpr size_t uniform_size() { return uniform_size_; }
   static constexpr size_t gap_before() { return gap_before_; }
   static constexpr size_t gap_after() { return gap_after_; }
@@ -371,7 +370,7 @@ class List<
   }
 
   template<typename... Indexes>
-  DataType& operator()(const Indexes&... indexes) const {
+  DataType& operator()(Indexes&&... indexes) const {
     // TODO: terribly inefficient
     return get(SizeArray{static_cast<size_t>(indexes)...});
   }
@@ -417,12 +416,13 @@ auto MakeList(ChainTag<chain_dim>,
               ListVector<Sublist>&& lists,
               typename Sublist::DataType* default_value,
               ChainOffsetVector<Sublist::kDims>&& nesting_offsets,
-              Sizes... sizes)
+              Sizes&&... sizes)
 #define V_LIST_TYPE \
     Chain<Sublist, chain_dim>
     -> V_LIST_TYPE {
-  return V_LIST_TYPE(std::move(lists), default_value,
-                     std::move(nesting_offsets), sizes...);
+  using namespace std;
+  return V_LIST_TYPE(move(lists), default_value, move(nesting_offsets),
+                     forward<Sizes>(sizes)...);
 }
 #undef V_LIST_TYPE
 

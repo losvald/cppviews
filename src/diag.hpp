@@ -77,8 +77,8 @@ class DiagBlock {
   using NativeType = NativeNested[block_size];
 
   template<typename Index, typename... Indexes>
-  T& operator()(Index index, Indexes... indexes) {
-    return b_[index](indexes...);
+  T& operator()(Index&& index, Indexes&&... indexes) {
+    return b_[index](std::forward<Indexes>(indexes)...);
   }
 
  private:
@@ -91,12 +91,8 @@ class DiagBlock<T, BlockSize, block_size> {
   using NativeType = T[block_size];
 
   template<typename Index>
-  T& operator()(Index index) { return b_[index]; }
+  T& operator()(Index&& index) { return b_[index]; }
 
-  template<typename Index>
-  const T& operator()(Index index) const {
-    return const_cast<DiagBlock*>(this)->operator()(index);
-  }
  private:
   NativeType b_;
 };
@@ -134,27 +130,28 @@ class DiagHelper
   DiagHelper(typename std::conditional<
              1 + sizeof...(Sizes) == sizeof...(block_sizes),
              size_t, Disabler>::type size,
-             Sizes... sizes)
+             Sizes&&... sizes)
     : ListBase<DataType, sizeof...(block_sizes)>(size, sizes...) {}
 
   DiagHelper() = default;
 
   template<size_t... Is>
-  DataType& get0(const typename ListBaseType::SizeArray& indexes,
+  DataType& get0(typename ListBaseType::SizeArray&& indexes,
                  cpp14::index_sequence<Is...>) const {
-    return this->operator()(std::get<Is>(indexes)...);
+    return this->operator()(std::get<Is>(std::move(indexes))...);
   }
 
  public:
   template<typename... Indexes>
-  DataType& operator()(const Indexes&... indexes) const {
+  DataType& operator()(Indexes&&... indexes) const {
     return static_cast<const ListType*>(this)->get0(
         cpp14::index_sequence_for<Indexes...>(),
-        indexes...);
+        std::forward<Indexes>(indexes)...);
   }
 
   DataType& get(typename ListBaseType::SizeArray&& indexes) const override {
-    return get0(indexes, cpp14::make_index_sequence<DiagHelper::kDims>());
+    return get0(std::move(indexes),
+                cpp14::make_index_sequence<DiagHelper::kDims>());
   }
 
   template<unsigned dim>
@@ -359,7 +356,7 @@ class V_LIST_TYPE
   friend class ValuesView;
 
   template<typename... Sizes>
-  List(DataType* default_value, size_t size, Sizes... sizes)
+  List(DataType* default_value, size_t size, Sizes&&... sizes)
       : DiagHelper(size, sizes...),
         blocks_(ComputeBlockCount(cpp14::index_sequence_for<size_t, Sizes...>(),
                                   size, sizes...)),
@@ -402,8 +399,8 @@ class V_LIST_TYPE
   typedef detail::DiagBlock<DataType, BlockSize, block_sizes...> DiagBlockType;
 
   template<size_t... Is, typename... Sizes>
-  static size_t ComputeBlockCount(cpp14::index_sequence<Is...>, Sizes... sizes)
-  {
+  static size_t ComputeBlockCount(cpp14::index_sequence<Is...>,
+                                  Sizes&&... sizes) {
     return list_detail::MinSize(((sizes + (block_sizes - 1)) /
                                  std::get<Is>(dim_scalers()))...);
   }
@@ -422,7 +419,7 @@ class V_LIST_TYPE
   template<size_t... Is, typename... Sizes>
   static bool IsLastBlockFull(const size_t& block_cnt,
                               cpp14::index_sequence<Is...>,
-                              const Sizes&... sizes) {
+                              Sizes&&... sizes) {
     using namespace detail;
     return BitwiseOr((block_cnt * std::get<Is>(dim_scalers()) > sizes)...);
   }
@@ -440,8 +437,8 @@ class V_LIST_TYPE
   }
 
   template<size_t I, size_t... Is, typename Index, typename... Indexes>
-  DataType& get0(cpp14::index_sequence<I, Is...>, const Index& index,
-                 const Indexes&... indexes) const {
+  DataType& get0(cpp14::index_sequence<I, Is...>, Index&& index,
+                 Indexes&&... indexes) const {
     typename decltype(blocks_)::size_type block_index;
     if (!list_detail::SameSize(block_index = index / std::get<I>(dim_scalers()),
                                (indexes / std::get<Is>(dim_scalers()))...))
@@ -507,7 +504,7 @@ class V_LIST_TYPE
   };
 
   template<typename... Sizes>
-  List(DataType* default_value, size_t size, Sizes... sizes)
+  List(DataType* default_value, size_t size, Sizes&&... sizes)
       : DiagHelper(size, sizes...),
         blocks_(list_detail::MinSize(size, sizes...)),
         default_value_(default_value),
@@ -537,9 +534,9 @@ class V_LIST_TYPE
 
  private:
   template<size_t I, size_t... Is, typename Index, typename... Indexes>
-  DataType& get0(cpp14::index_sequence<I, Is...>, const Index& index,
-                 const Indexes&... indexes) const {
-    return list_detail::SameSize(index, indexes...)
+  DataType& get0(cpp14::index_sequence<I, Is...>, Index&& index,
+                 Indexes&&... indexes) const {
+    return list_detail::SameSize(index, std::forward<Indexes>(indexes)...)
         ? blocks_[index]
         : *default_value_;
   }
