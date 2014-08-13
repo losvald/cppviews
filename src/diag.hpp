@@ -198,7 +198,7 @@ class DiagValueIter
   }
 
   void Increment() override {
-    static constexpr auto block_size = this->block_size_product();
+    static constexpr auto block_size = block_size_product();
     do {
       if (++inner_ == block_size) {
         inner_ = 0;
@@ -222,9 +222,11 @@ class DiagValueIter
   constexpr bool WithinLastBlock(size_t pos, cpp14::index_sequence<Is...>) const
   {
     // TODO: messy, because the block has the reverse memory order
-    static constexpr BlockSize sizes[] = {block_sizes...};
-    return list_detail::WithinLast<BlockSize, sizes[dims() - Is - 1]...>(
-        pos, std::get<dims() - Is - 1>(last_block_sizes_)...);
+    return list_detail::WithinLast<BlockSize,
+                                   list_detail::GetNth<
+                                     static_cast<BlockSize>(dims() - Is - 1),
+                                     BlockSize, block_sizes...>::value...>
+        (pos, std::get<dims() - Is - 1>(last_block_sizes_)...);
   }
 
   template<typename Size, BlockSize size>
@@ -255,12 +257,6 @@ class DiagValueIter
   static constexpr size_t block_size_product() {
     return list_detail::SizeProduct(static_cast<size_t>(block_sizes)...);
   }
-
-  // static const detail::DiagDimScaler<size_t, block_size()>&
-  // block_scaler() {
-  //   static const detail::DiagDimScaler<size_t, block_size()> instance;
-  //   return instance;
-  // }
 
   size_t full_block_cnt_;
   size_t global_;
