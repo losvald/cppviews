@@ -391,7 +391,7 @@ class V_LIST_TYPE
     return *reinterpret_cast<typename View<DataType>::Iterator*>(NULL);
   }
 
-  ValuesView& values() const override { return values_; }
+  const ValuesView& values() const override { return values_; }
 
   size_t block_count() const { return blocks_.size(); }
 
@@ -453,7 +453,7 @@ class V_LIST_TYPE
   DataType* default_value_;
   bool last_block_full_;
   size_t nondefault_value_cnt_;
-  mutable ValuesView values_;
+  ValuesView values_;
 };
 
 // specialization for diagonal with block sizes all 1
@@ -528,7 +528,7 @@ class V_LIST_TYPE
     return *reinterpret_cast<typename View<DataType>::Iterator*>(NULL);
   }
 
-  ValuesView& values() const override { return values_; }
+  const ValuesView& values() const override { return values_; }
 
   size_t block_count() const { return blocks_.size(); }
 
@@ -543,7 +543,7 @@ class V_LIST_TYPE
 
   mutable std::vector<DataType> blocks_;
   DataType* default_value_;
-  mutable ValuesView values_;
+  ValuesView values_;
 };
 
 template<typename DataType, typename BlockSize, BlockSize... block_sizes,

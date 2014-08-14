@@ -14,7 +14,7 @@ class Map {
   typedef Value ValueType;
   typedef std::pair<Key, Value> EntryType;
 
-  virtual View<Value>& values() const = 0;
+  virtual const View<Value>& values() const = 0;
   // TODO: support keys view
 };
 
