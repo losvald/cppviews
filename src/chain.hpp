@@ -23,10 +23,9 @@ class ChainedListVector : public ListVector<SublistType> {
   static constexpr unsigned chain_dimension() { return chain_dim; }
 };
 
-template<class L>
+template<class SublistType>
 struct ChainHelper {
-  template<class Container>
-  static void InsertDummies(Container* c) {
+  static void InsertDummies(ListVector<SublistType>* c) {
     // add a sentinel list at the front (copy first and shrink it to size 0)
     c->Add(c->begin(), c->front());
     c->front().ShrinkToFirst();
@@ -39,8 +38,7 @@ struct ChainHelper {
 
 template<typename T, unsigned dims>
 struct ChainHelper<ListBase<T, dims> > {
-  template<class Container>
-  static void InsertDummies(Container* c) {
+  static void InsertDummies(ListVector<ListBase<T, dims> >* c) {
     c->template Add<DummyList<T, dims> >(c->begin());
     c->template AppendDerived<DummyList<T, dims> >();
   }
@@ -341,7 +339,7 @@ class List<
   InsertDummies(Container& lists_, const List::SizeArray& sizes,
                 std::vector<SizeArray>&& nesting_offsets_) {
     if (!lists_.empty()) {
-      detail::ChainHelper<SublistType>::template InsertDummies(&lists_);
+      detail::ChainHelper<SublistType>::InsertDummies(&lists_);
       lists_.Shrink();
     }
 
