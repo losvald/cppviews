@@ -1,6 +1,7 @@
 #ifndef CPPVIEWS_SRC_LIST_HPP_
 #define CPPVIEWS_SRC_LIST_HPP_
 
+#include "map.hpp"
 #include "portion.hpp"
 #include "portion_helper.hpp"
 #include "view.hpp"
@@ -373,7 +374,8 @@ struct ListTraits {
 };
 
 template<typename T, unsigned dims = 1>
-class ListBase : public View<T> {
+class ListBase : public View<T>,
+                 public Map<std::array<size_t, dims>, T> {
   // struct Disabler {};  // used for SFINAE (to disable constructors
  public:
   typedef std::array<size_t, dims> SizeArray;
@@ -494,6 +496,8 @@ class List<void, dims, kListNoFlags, void, T> : public ListBase<T, dims> {
 #undef V_THIS_DEF_ITER_ACCESSOR
 #undef V_THIS_DEF_ITER_ACCESSORS
 
+  const List& values() const override { return *this; }
+
  private:
   template<size_t... Is>
   List(cpp14::index_sequence<Is...>)
@@ -610,6 +614,8 @@ class List<P, 1, kListOpVector, V_LIST_INDEXER_TYPE>
     return Iterator(const_cast<Container&>(container_).begin(), this->size(),
                     indexer_);
   }
+
+  const List& values() const override { return *this; }
 
  protected:
   typename View<DataType>::Iterator iterator_begin() const override {
@@ -774,6 +780,11 @@ class List<void, dims, kListNoFlags, Accessor, T>
   // overrides View<T>::Iterator to provide O(1) time complexity
   typename View<T>::Iterator iterator_end() const {
     return end(cpp14::make_index_sequence<dims>());
+  }
+
+  const DummyList<T, dims>& values() const override {
+    static DummyList<T, dims> instance;
+    return instance;
   }
 
  private:

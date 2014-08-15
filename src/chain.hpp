@@ -46,6 +46,84 @@ struct ChainHelper<ListBase<T, dims> > {
   }
 };
 
+template<class SublistType>
+class ChainValues : public View<typename SublistType::DataType> {
+  typedef ListVector<SublistType> ListVectorType;
+
+ public:
+  using typename View<typename SublistType::DataType>::DataType;
+
+  class Iterator
+      : public DefaultIterator<Iterator, std::forward_iterator_tag, DataType>,
+        public View<DataType>::IteratorBase {
+    V_DEFAULT_ITERATOR_DERIVED_HEAD(Iterator);
+
+    typedef typename ListVectorType::Iterator OuterIter;
+    typedef typename std::decay<
+      decltype(std::declval<SublistType>().values())
+      >::type::Iterator InnerIter;
+
+   public:
+    Iterator(const OuterIter& outer_cur, const OuterIter& outer_max)
+        : inner_cur_(outer_cur->values().begin()),
+          inner_end_(outer_cur->values().end()),
+          outer_cur_(outer_cur),
+          outer_max_(outer_max) {}
+
+   protected:
+    V_DEF_VIEW_ITER_IS_EQUAL(DataType, Iterator)
+
+    bool IsEqual(const Iterator& other) const {
+      return outer_cur_ == other.outer_cur_ && inner_cur_ == other.inner_cur_;
+    }
+
+    void Increment() override {
+      if (++inner_cur_ == inner_end_)
+        do {
+          const auto& values = (++outer_cur_)->values();
+          inner_end_ = values.end();
+          inner_cur_ = values.begin();
+        } while (inner_cur_ == inner_end_ && outer_cur_ != outer_max_);
+    }
+
+    DataType& ref() const override { return *inner_cur_; }
+
+   private:
+    InnerIter inner_cur_;
+    InnerIter inner_end_;  // value iterator creation can be expensive
+    OuterIter outer_cur_;
+    OuterIter outer_max_;
+  };
+
+ public:
+  ChainValues(ListVectorType* lists) : lists_(lists) {
+    this->size_ = 0;
+    for (const auto& list : *lists_)
+      this->size_ += list.values().size();
+  }
+  typename View<DataType>::Iterator iterator_begin() const {
+    return new Iterator(begin());
+  }
+  typename View<DataType>::Iterator iterator_end() const {
+    return new Iterator(end());
+  }
+  Iterator begin() const {
+    auto it = ++lists_->begin(), it_max = --lists_->end();
+    if (!it->values().size() && it != it_max) {
+      // unroll once to boost performance if first is not empty (common case)
+      do ++it; while (!it->values().size() && it != it_max);
+    }
+    return Iterator(it, it_max);
+  }
+  Iterator end() const {
+    auto it_max = --lists_->end();
+    return Iterator(it_max, it_max);
+  }
+
+ private:
+  ListVectorType* lists_;
+};
+
 }  // namespace detail
 
 // For the MakeList overload, we need to somehow encode the chaining dimension.
@@ -93,6 +171,8 @@ class List<
   typedef typename ListBaseType::SizeArray SizeArray;
 #undef V_THIS_DATA_TYPE
 
+  typedef detail::ChainValues<SublistType> ValuesView;
+
   template<typename... Sizes>
   List(ListVector<SublistType>&& lists, DataType* default_value,
        std::vector<SizeArray>&& nesting_offsets,
@@ -103,7 +183,8 @@ class List<
         default_value_(default_value),
         nesting_offsets_(InsertDummies(lists_, this->sizes_,
                                        std::move(nesting_offsets))),
-        fwd_skip_list_(nesting_offsets_.size() - 1, &nesting_offsets_) {}
+        fwd_skip_list_(nesting_offsets_.size() - 1, &nesting_offsets_),
+        values_(&lists_) {}
 
   explicit List(ListVector<SublistType>&& lists,
                 DataType* default_value = nullptr,
@@ -112,7 +193,8 @@ class List<
       : lists_(std::move(lists)),
         default_value_(default_value),
         nesting_offsets_(lists_.size()),
-        fwd_skip_list_(0) {
+        fwd_skip_list_(0),
+        values_(&lists_) {
     for (const auto& entry : lateral_offsets)
       SetLateralOffset(entry.second, &nesting_offsets_[entry.first]);
 
@@ -165,7 +247,8 @@ class List<
         lists_(std::move(src.lists_)),
         default_value_(src.default_value_),
         nesting_offsets_(std::move(src.nesting_offsets_)),
-        fwd_skip_list_(std::move(src.fwd_skip_list_)) {
+        fwd_skip_list_(std::move(src.fwd_skip_list_)),
+        values_(&lists_) {
     // the size getter points to nesting_offsets_ that is moved, so update it
     fwd_skip_list_.bucket_size_getter().o_ = &nesting_offsets_;
   }
@@ -208,6 +291,8 @@ class List<
     // TODO: implement
     return *reinterpret_cast<typename View<DataType>::Iterator*>(NULL);
   }
+
+  const ValuesView& values() const override { return values_; }
 
   const SizeArray& nesting_offset(size_t index) const {
     return nesting_offsets_[++index];
@@ -275,6 +360,7 @@ class List<
   DataType* default_value_;
   std::vector<SizeArray> nesting_offsets_;
   SkipListType fwd_skip_list_;
+  ValuesView values_;
 };
 
 // specialization for Uniform Chain (same sublist sizes + no lateral offsets)
@@ -344,10 +430,13 @@ class List<
 #undef V_THIS_DATA_TYPE
 
  public:
+  typedef detail::ChainValues<SublistType> ValuesView;
+
   template<typename... Sizes>
   List(ListVector<SublistType>&& lists, DataType* default_value)
       : lists_(std::move(lists)),
-        default_value_(default_value) {
+        default_value_(default_value),
+        values_(&lists_) {
     const auto& first_sizes = lists_[0].sizes();
     std::copy(first_sizes.begin(), first_sizes.end(), this->sizes_.begin());
     this->sizes_[chain_dim] = uniform_size_ + gap_before_ + gap_after_;
@@ -397,6 +486,8 @@ class List<
     return *static_cast<typename View<DataType>::Iterator*>(nullptr);
   }
 
+  const ValuesView& values() const override { return values_; }
+
  private:
   static constexpr size_t bucket_size() {
     return uniform_size_ + gap_before_ + gap_after_;
@@ -404,6 +495,7 @@ class List<
 
   Container lists_;
   DataType* default_value_;
+  ValuesView values_;
 };
 
 // functions

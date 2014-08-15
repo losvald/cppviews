@@ -2,7 +2,6 @@
 #define CPPVIEWS_SRC_DIAG_HPP_
 
 #include "list.hpp"
-#include "map.hpp"  // TODO: move to list.hpp
 
 #include "util/bit_twiddling.hpp"
 #include "util/intseq.hpp"
@@ -318,8 +317,7 @@ template<typename DataType, unsigned dims, typename BlockSize,
 class V_LIST_TYPE
 #define V_THIS_BASE_TYPE \
   detail::DiagHelper<V_LIST_TYPE, DataType, BlockSize, block_sizes...>
-    : public V_THIS_BASE_TYPE,
-      public Map<std::array<size_t, dims>, DataType> {
+    : public V_THIS_BASE_TYPE {
   friend class V_THIS_BASE_TYPE;
   typedef V_THIS_BASE_TYPE DiagHelper;
 #undef V_THIS_BASE_TYPE
@@ -333,8 +331,8 @@ class V_LIST_TYPE
    public:
     typedef ValueIter Iterator;
 
-    ValuesView(List* list)
-        : View<DataType>(list->nondefault_value_cnt_),
+    ValuesView(List* list, size_t size)
+        : View<DataType>(size),
           list_(list) {}
     typename View<DataType>::Iterator iterator_begin() const {
       return new Iterator(begin());
@@ -364,20 +362,18 @@ class V_LIST_TYPE
         last_block_full_(IsLastBlockFull(
             blocks_.size(),
             cpp14::index_sequence_for<size_t, Sizes...>(), size, sizes...)),
-        nondefault_value_cnt_(ComputeNonDefaultValueCount(blocks_.size(),
-                                                          last_block_full_,
-                                                          size, sizes...)),
-        values_(this) {}
+        values_(this, ComputeNonDefaultValueCount(blocks_.size(),
+                                                  last_block_full_,
+                                                  size, sizes...)) {}
 
   List(size_t block_count, DataType* default_value = nullptr)
       : DiagHelper((block_count * block_sizes)...),
         blocks_(block_count),
         default_value_(default_value),
         last_block_full_(true),
-        nondefault_value_cnt_(
-            list_detail::SizeProduct(static_cast<size_t>(block_sizes)...) *
-            block_count),
-        values_(this) {}
+        values_(this,
+                list_detail::SizeProduct(static_cast<size_t>(block_sizes)...) *
+                block_count) {}
 
   // used by MakeList
   template<typename... Args>
@@ -452,7 +448,6 @@ class V_LIST_TYPE
   mutable std::vector<DiagBlockType> blocks_;
   DataType* default_value_;
   bool last_block_full_;
-  size_t nondefault_value_cnt_;
   ValuesView values_;
 };
 
@@ -472,8 +467,7 @@ template<typename DataType, unsigned dims, typename BlockSize,
 class V_LIST_TYPE
 #define V_THIS_BASE_TYPE                                                \
   detail::DiagHelper<V_LIST_TYPE, DataType, BlockSize, block_sizes...>
-    : public V_THIS_BASE_TYPE,
-      public Map<std::array<size_t, dims>, DataType> {
+    : public V_THIS_BASE_TYPE {
   friend class V_THIS_BASE_TYPE;
   typedef V_THIS_BASE_TYPE DiagHelper;
 #undef V_THIS_BASE_TYPE

@@ -1,6 +1,16 @@
 #include "../src/chain.hpp"
 #include "test.hpp"
 
+namespace {
+
+template<typename ValueType, typename KeyType>
+void AssertValuesEmpty(const Map<ValueType, KeyType>& map) {
+  ASSERT_EQ(0, map.values().size());
+  ASSERT_EQ(map.values().end(), map.values().begin());
+}
+
+}  // namespace
+
 TEST(ChainTest, PolyNoGapNoOffsets) {
   //    0 1 2 3 4 5 6 7
   //   +-----+-------+-+
@@ -51,6 +61,8 @@ TEST(ChainTest, PolyNoGapNoOffsets) {
     for (unsigned row = 0; row < c2_0_nogap.sizes()[1]; ++row)
       zero_cnt += c2_0_nogap.get({col, row}) == 0;
   EXPECT_EQ(12, zero_cnt);
+
+  AssertValuesEmpty(c2_0_nogap);
 }
 
 TEST(ChainTest, PolyConst) {
@@ -130,6 +142,8 @@ TEST(ChainTest, PolyConst) {
     for (unsigned row = 0; row < c2_1.sizes()[1]; ++row)
       EXPECT_EQ(c2_1.get({col, row}), c2_1_explicit.get({col, row})) <<
           "Incorrect get(" << col << ", " << row << ')';
+
+  AssertValuesEmpty(c2_1);
 }
 
 TEST(ChainTest, Poly1DLeadingGap) {
@@ -150,6 +164,8 @@ TEST(ChainTest, Poly1DLeadingGap) {
   EXPECT_EQ(default_value, c1.get({0}));
   EXPECT_EQ(default_value, c1.get({1}));
   EXPECT_EQ(default_value, c1.get({2}));
+
+  AssertValuesEmpty(c1);
 }
 
 TEST(ChainTest, PolyTrailingGap) {
@@ -170,6 +186,8 @@ TEST(ChainTest, PolyTrailingGap) {
   EXPECT_EQ(value, c3_1.get({0, 0, 0}));
   EXPECT_EQ(default_value, c3_1.get({0, 1, 0}));
   EXPECT_EQ(default_value, c3_1.get({0, 2, 0}));
+
+  AssertValuesEmpty(c3_1);
 }
 
 TEST(ChainTest, NestingMakeList) {
@@ -263,6 +281,8 @@ TEST(UniformChainTest, PolyNoGaps) {
   EXPECT_EQ(0, uc2_0_3_nogap.get({3, 1}));
   EXPECT_EQ(0, uc2_0_3_nogap.get({6, 0}));
   EXPECT_EQ(0, uc2_0_3_nogap.get({8, 0}));
+
+  AssertValuesEmpty(uc2_0_3_nogap);
 }
 
 TEST(UniformChainTest, PolyGapsBeforeOnly) {
@@ -298,6 +318,8 @@ TEST(UniformChainTest, PolyGapsBeforeOnly) {
   EXPECT_EQ(-1, uc2_0_1_2.get({1, 0}));
   EXPECT_EQ(-1, uc2_0_1_2.get({3, 1}));
   EXPECT_EQ(-1, uc2_0_1_2.get({4, 1}));
+
+  AssertValuesEmpty(uc2_0_1_2);
 }
 
 TEST(UniformChainTest, PolyGapsAfterOnly) {
@@ -332,6 +354,8 @@ TEST(UniformChainTest, PolyGapsAfterOnly) {
   EXPECT_EQ(0, uc2_0_1_0_3.get({5, 0}));
   EXPECT_EQ(0, uc2_0_1_0_3.get({6, 0}));
   EXPECT_EQ(0, uc2_0_1_0_3.get({7, 0}));
+
+  AssertValuesEmpty(uc2_0_1_0_3);
 }
 
 TEST(UniformChainTest, PolyGapsBeforeAndAfter) {
@@ -391,6 +415,8 @@ TEST(UniformChainTest, PolyGapsBeforeAndAfter) {
       for (size_t c1 = 0; c1 <= 3; ++c1)
         EXPECT_EQ(-1, uc3_1_1_1_2.get({c1, c2, 0}))
             << "get(" << c1 << ", " << c2 << ", 0)";
+
+  AssertValuesEmpty(uc3_1_1_1_2);
 }
 
 TEST(UniformChainTest, MakeList) {

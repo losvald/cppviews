@@ -14,6 +14,7 @@ unittest_all_SOURCES = test.cpp \
 	portion_test.cpp \
 	chain_test.cpp \
 	diag_test.cpp \
+	diag_chain_test.cpp \
 	list_test.cpp \
 	bench/util/sparse_matrix_test.cpp
 

@@ -7,7 +7,6 @@
 #include <type_traits>
 
 TEST(ListMetatest, WithinLast) {
-  using namespace std::placeholders;
   using namespace list_detail;
 
   {
@@ -72,6 +71,10 @@ TEST(ListTest, Dummy) {
   decltype(dl.clend()) cit = dl.lend();
   EXPECT_EQ(cit, dl.clend());
   // decltype(dl.lend()) it = dl.clend();  // compile error - OK
+
+  // validate iteration over values
+  EXPECT_EQ(0, dl.values().size());
+  EXPECT_EQ(dl.values().begin(), dl.values().end());
 }
 
 TEST(ListTest, PortionVector) {
@@ -138,6 +141,15 @@ TEST(ListTest, SimpleNonPoly) {
   EXPECT_EQ(10, l2.get(1));
   EXPECT_EQ(20, l2.get(2));
 
+  // validate iteration over values
+  auto vit = l3.values().begin();
+  EXPECT_EQ(3, l3.values().size());
+  EXPECT_EQ(40, *vit++);
+  EXPECT_EQ(10, *vit++);
+  EXPECT_EQ(20, *vit++);
+  EXPECT_EQ(l3.values().end(), vit);
+
+  // validate changes through an iterator
   auto l3_it = l3.begin();
   EXPECT_EQ(40, *l3_it++);
   EXPECT_EQ(10, *l3_it);
@@ -265,7 +277,7 @@ void AssertEqualYellow(const L& l) {
   EXPECT_EQ('w', l.get(5));
 }
 
-TEST(ListTest, ConstructorPoly) {
+TEST(ListTest, SimplePoly) {
   static char y = 'y';
   static const char *hello_world_str = "hello world";
   static std::string world(hello_world_str + 6, 5);
@@ -304,6 +316,12 @@ TEST(ListTest, ConstructorPoly) {
   //        (world.cbegin(), 1)
   //        (hello_world_str + 5, 1)
   //        (world.crbegin() + 2, 4));
+}
+
+TEST(ListTest, ImplicitPoly) {
+  static char y = 'y';
+  static const char *hello_world_str = "hello world";
+  static std::string world(hello_world_str + 6, 5);
 
   ImplicitList<const char> il([&](size_t index) -> const char* {
       switch (index) {
@@ -338,6 +356,10 @@ TEST(ListTest, ConstructorPoly) {
   ++it2;
   EXPECT_EQ(&world[0], &*++it2);
   EXPECT_EQ(il2.end(), ++it2);
+
+  // validate iteration over values
+  EXPECT_EQ(0, il.values().size());
+  EXPECT_EQ(il.values().begin(), il.values().end());
 }
 
 TEST(ListTest, SizesAndSize) {
