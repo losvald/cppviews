@@ -240,6 +240,29 @@ struct ZeroRandomAccess : public FilteredRandomAccess {
       }) {}
 };
 
+struct NonZeroSequentialIteration : public Benchmark {
+  NonZeroSequentialIteration()
+      : access_count_(
+            gPO.access_count.count() ? gPO.access_count() : smv_.size()) {}
+
+  void Run() override {
+    for (size_t i = 0; i < access_count_; ++i) {
+      const auto& values = smv_.values();
+      size_t pos = std::min(values.size(), access_count_ - i);
+      i += pos;
+      for (auto it = values.begin(); pos--; ++it) {
+        if (!gPO.dry_run())
+          hash_ += *it;
+        else
+          hash_ += pos;
+      }
+    }
+  }
+
+ private:
+  size_t access_count_;
+};
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -261,6 +284,7 @@ int main(int argc, char* argv[]) {
     {"sra", [] { return new SampledRandomAccess; } },
     {"nra", [] { return new NonZeroRandomAccess; } },
     {"zra", [] { return new ZeroRandomAccess; } },
+    {"nsi", [] { return new NonZeroSequentialIteration; } },
   };
 
   if (gPO.list()) {
