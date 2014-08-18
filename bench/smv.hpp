@@ -23,7 +23,7 @@ using ImplicitMatrix = v::ImplicitList<const T, 2, Accessor>;
 template<typename T, T value, typename Coord = DefaultCoord>
 using SameValuesMatrix = ImplicitMatrix<
   T,
-  detail::SameValueAccessor<T, value, Coord> >;
+  ::detail::SameValueAccessor<T, value, Coord> >;
 
 template<typename T>
 constexpr T Zero() { return T(); }
