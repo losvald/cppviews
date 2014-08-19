@@ -56,7 +56,7 @@ class ChainValues : public View<typename SublistType::DataType> {
         public View<DataType>::IteratorBase {
     V_DEFAULT_ITERATOR_DERIVED_HEAD(Iterator);
 
-    typedef typename ListVectorType::Iterator OuterIter;
+    typedef typename ListVectorType::ConstIterator OuterIter;
     typedef typename std::decay<
       decltype(std::declval<SublistType>().values())
       >::type::Iterator InnerIter;
@@ -94,7 +94,7 @@ class ChainValues : public View<typename SublistType::DataType> {
   };
 
  public:
-  ChainValues(ListVectorType* lists) : lists_(lists) {
+  ChainValues(const ListVectorType& lists) : lists_(&lists) {
     this->size_ = 0;
     for (const auto& list : *lists_)
       this->size_ += list.values().size();
@@ -119,7 +119,7 @@ class ChainValues : public View<typename SublistType::DataType> {
   }
 
  private:
-  ListVectorType* lists_;
+  const ListVectorType* lists_;
 };
 
 }  // namespace detail
@@ -182,7 +182,7 @@ class List<
         nesting_offsets_(InsertDummies(lists_, this->sizes_,
                                        std::move(nesting_offsets))),
         fwd_skip_list_(nesting_offsets_.size() - 1, &nesting_offsets_),
-        values_(&lists_) {}
+        values_(lists_) {}
 
   explicit List(ListVector<SublistType>&& lists,
                 DataType* default_value = nullptr,
@@ -192,7 +192,7 @@ class List<
         default_value_(default_value),
         nesting_offsets_(lists_.size()),
         fwd_skip_list_(0),
-        values_(&lists_) {
+        values_(lists_) {
     for (const auto& entry : lateral_offsets)
       SetLateralOffset(entry.second, &nesting_offsets_[entry.first]);
 
@@ -246,7 +246,7 @@ class List<
         default_value_(src.default_value_),
         nesting_offsets_(std::move(src.nesting_offsets_)),
         fwd_skip_list_(std::move(src.fwd_skip_list_)),
-        values_(&lists_) {
+        values_(lists_) {
     // the size getter points to nesting_offsets_ that is moved, so update it
     fwd_skip_list_.bucket_size_getter().o_ = &nesting_offsets_;
   }
@@ -434,7 +434,7 @@ class List<
   List(ListVector<SublistType>&& lists, DataType* default_value)
       : lists_(std::move(lists)),
         default_value_(default_value),
-        values_(&lists_) {
+        values_(lists_) {
     const auto& first_sizes = lists_[0].sizes();
     std::copy(first_sizes.begin(), first_sizes.end(), this->sizes_.begin());
     this->sizes_[chain_dim] = uniform_size_ + gap_before_ + gap_after_;
