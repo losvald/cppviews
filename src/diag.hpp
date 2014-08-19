@@ -331,7 +331,7 @@ class V_LIST_TYPE
    public:
     typedef ValueIter Iterator;
 
-    ValuesView(List* list, size_t size)
+    ValuesView(List* list, const size_t& size)
         : View<DataType>(size),
           list_(list) {}
     typename View<DataType>::Iterator iterator_begin() const {
@@ -349,12 +349,15 @@ class V_LIST_TYPE
                       list_->blocks_.size(), &list_->sizes());
     }
    private:
+    void MoveTo(List* list) { list_ = list; }
+
     List* list_;
+    friend class List;
   };
   friend class ValuesView;
 
   template<typename... Sizes>
-  List(DataType* default_value, size_t size, Sizes&&... sizes)
+  List(DataType* default_value, const size_t& size, Sizes&&... sizes)
       : DiagHelper(size, sizes...),
         blocks_(ComputeBlockCount(cpp14::index_sequence_for<size_t, Sizes...>(),
                                   size, sizes...)),
@@ -374,6 +377,15 @@ class V_LIST_TYPE
         values_(this,
                 list_detail::SizeProduct(static_cast<size_t>(block_sizes)...) *
                 block_count) {}
+
+  List(List&& src)
+      : DiagHelper(std::move(src)),
+        blocks_(std::move(src.blocks_)),
+        default_value_(src.default_value_),
+        last_block_full_(src.last_block_full_),
+        values_(std::move(src.values_)) {
+    values_.MoveTo(this);
+  }
 
   // used by MakeList
   template<typename... Args>
@@ -498,7 +510,7 @@ class V_LIST_TYPE
   };
 
   template<typename... Sizes>
-  List(DataType* default_value, size_t size, Sizes&&... sizes)
+  List(DataType* default_value, const size_t& size, Sizes&&... sizes)
       : DiagHelper(size, sizes...),
         blocks_(list_detail::MinSize(size, sizes...)),
         default_value_(default_value),
