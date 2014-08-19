@@ -54,6 +54,7 @@ class $sm
         auto col = *col_range.first;
         (*this)(row, col) = sm(row, col);
       }
+    nondefault_cnt_ = sm.nonzero_count();
   }
 };
 
