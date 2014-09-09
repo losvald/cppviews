@@ -415,6 +415,60 @@ class ListBase : public View<T>,
   }
 
  protected:
+  template<typename V>
+  class PolyDimIterator {
+   protected:
+    typedef bool (*IsEqualPointer)(const PolyDimIterator& lhs,
+                                   const PolyDimIterator& rhs);
+
+    virtual PolyDimIterator* Clone() const = 0;
+    virtual void Increment() = 0;
+    virtual V& ref() const = 0;
+    virtual IsEqualPointer equal() const = 0;
+  };
+
+  // helper class for easy derivation of PolyDimIterator by the subclasses
+  template<class Derived, typename V, class Category, typename Distance>
+  class DimIteratorBase
+      : public DefaultIterator<Derived, Category, V, Distance>,
+        public PolyDimIterator<V> {
+   protected:
+    PolyDimIterator<V>* Clone() const override {
+      return new Derived(this->derived());
+    }
+    static bool IsEqual(const PolyDimIterator<V>& lhs,
+                        const PolyDimIterator<V>& rhs) {
+      return static_cast<const Derived&>(lhs) ==
+          static_cast<const Derived&>(rhs);
+    }
+    typename DimIteratorBase::IsEqualPointer equal() const override {
+      return &IsEqual;
+    }
+  };
+
+  template<typename V>
+  class DimIterator : public DimIteratorBase<DimIterator<V>,
+                                             V,
+                                             std::forward_iterator_tag,
+                                             std::ptrdiff_t> {
+    V_DEFAULT_ITERATOR_DERIVED_HEAD(DimIterator);
+   public:
+    DimIterator(PolyDimIterator<V>*&& it) :
+        it_(std::forward<PolyDimIterator<V>*&&>(it)) {}
+    DimIterator(const DimIterator& copy) : it_(copy.it_->Clone()) {}
+    DimIterator(DimIterator&& other) = default;
+    DimIterator& operator=(const DimIterator& rhs) = default;
+    DimIterator& operator=(DimIterator&& rhs) = default;
+   protected:
+    void Increment() override { it_->Increment(); }
+    bool IsEqual(const DimIterator& rhs) const override {
+      return it_->equal() == rhs.it_->equal() && it_->equal()(*it_, *rhs.it_);
+    }
+    virtual V& ref() const override { return it_->ref(); }
+   private:
+    std::unique_ptr<PolyDimIterator<V> > it_;
+  };
+
   SizeArray sizes_;
   SizeArray offsets_;
 };
