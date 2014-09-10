@@ -9,6 +9,7 @@
 #ifndef V_DIAG_NLIBDIVIDE
 #include "util/libdivide.h"
 #endif  // !defined(V_DIAG_NLIBDIVIDE)
+#include "util/proxy_pointer.hpp"
 
 #include <tuple>
 #include <type_traits>
@@ -96,6 +97,24 @@ class DiagBlock<T, BlockSize, block_size> {
   NativeType b_;
 };
 
+template<typename V>
+class DiagBlockVectorTraits {
+ private:
+  // vector<bool> doesn't expose the ref/ptr, so use a ProxyPointer wrapper
+  // (this can also be the case for a user-defined type V, so be generic)
+  typedef typename std::vector<typename std::remove_const<V>::type> Vector;
+ public:
+  typedef typename std::conditional<
+    std::is_const<V>::value,
+    typename Vector::const_reference,
+    typename Vector::reference>::type VectorRef;
+
+  static constexpr bool kIsVectorRefProxy =
+      !std::is_convertible<VectorRef, V&>::value;
+  typedef typename std::conditional<kIsVectorRefProxy,
+                                    ProxyPointer<VectorRef>,
+                                    V*>::type ValuePtr;
+};
 
 template<typename Int>
 constexpr Int BitwiseOr(Int&& i) { return std::forward<Int>(i); }
@@ -283,7 +302,7 @@ class SimpleDiagValueIter
   void Increment() override { ++outer_; }
 
   DataType& ref() const override {
-    return *reinterpret_cast<DataType*>(&*outer_);
+    return *outer_;
   }
 
  private:
@@ -509,6 +528,58 @@ class V_LIST_TYPE
     Iterator end_;
   };
 
+  template<typename V, unsigned dim>
+  class DimIter
+      : public List::template DimIteratorBase<DimIter<V, dim>,
+                                              V,
+                                              std::forward_iterator_tag,
+                                              unsigned> {
+    V_DEFAULT_ITERATOR_DERIVED_HEAD(DimIter);
+    template<typename, unsigned> friend class DimIter;
+    template<typename FromType, typename ToType, class Type>
+    using EnableIfConvertible = typename std::enable_if<
+      std::is_convertible<FromType, ToType>::value, Type>::type;
+
+    typedef typename detail::DiagBlockVectorTraits<V>::ValuePtr ValuePtr;
+
+   public:
+    explicit DimIter(ValuePtr block, ValuePtr default_value,
+                     const size_t& offset = -1)
+        : offset_(-offset),
+          block_(std::move(block)),
+          default_value_(std::move(default_value)) {}
+    template<typename V2>
+    DimIter(const DimIter<V2, dim>& copy,
+            EnableIfConvertible<V2*, V*, typename DimIter::Enabler>
+            enabler = typename DimIter::Enabler())
+        : offset_(copy.offset_),
+          block_(copy.block_),
+          default_value_(copy.default_value_) {}
+
+    static constexpr unsigned kDim = dim;
+
+   protected:
+    void Increment() override { ++offset_; }
+
+    template<typename V2>
+    EnableIfConvertible<V2, V, bool>
+    IsEqual(const DimIter<V2, dim>& other) const override {
+      return offset_ == other.offset_;
+    }
+
+    V& ref() const override { return offset_ ? *default_value_ : *block_; }
+
+   private:
+    size_t offset_;
+    ValuePtr block_;
+    ValuePtr default_value_;
+  };
+
+  template<unsigned dim>
+  using DimIterator = DimIter<DataType, dim>;
+  template<unsigned dim>
+  using ConstDimIterator = DimIter<const DataType, dim>;
+
   template<typename... Sizes>
   List(DataType* default_value, const size_t& size, Sizes&&... sizes)
       : DiagHelper(size, sizes...),
@@ -534,6 +605,31 @@ class V_LIST_TYPE
     return *reinterpret_cast<typename View<DataType>::Iterator*>(NULL);
   }
 
+  // define dimension iterator accessors with the signature:
+  //   template<unsigned dim, typename Index, typename... Indexes>
+  //   [Const]DimIterator<dim> dim_[c](begin|end)<dim>(
+  //       Index&& lateral_index, Indexes&&... lateral_indexes) const;
+  //  each of which forwards the call to the method dim_[c](begin|end)0<dim>
+#define V_THIS_DEF_DIM_ITER_ACCESSOR0(Tpl, method, method0)             \
+  template<unsigned dim, typename Index, typename... Indexes>           \
+  Tpl<dim> method(Index&& lateral_index, Indexes&&... lateral_indexes) const { \
+    return method0<Tpl<dim> >(                                          \
+        std::forward<Index>(lateral_index),                             \
+        std::forward<Indexes>(lateral_indexes)...);                     \
+  }
+#define V_THIS_DEF_DIM_ITER_ACCESSOR(Tpl, c, which)                     \
+  V_THIS_DEF_DIM_ITER_ACCESSOR0(Tpl, dim_ ## c ## which, dim_ ## which ## 0)
+#define V_THIS_DEF_DIM_ITER_ACCESSORS(Tpl, c)              \
+  V_THIS_DEF_DIM_ITER_ACCESSOR(Tpl, c, begin)              \
+  V_THIS_DEF_DIM_ITER_ACCESSOR(Tpl, c, end)
+
+  V_THIS_DEF_DIM_ITER_ACCESSORS(DimIterator, )
+  V_THIS_DEF_DIM_ITER_ACCESSORS(ConstDimIterator, c)
+
+#undef V_THIS_DEF_DIM_ITER_ACCESSORS
+#undef V_THIS_DEF_DIM_ITER_ACCESSOR
+#undef V_THIS_DEF_DIM_ITER_ACCESSOR0
+
   const ValuesView& values() const override { return values_; }
 
   size_t block_count() const { return blocks_.size(); }
@@ -545,6 +641,27 @@ class V_LIST_TYPE
     return list_detail::SameSize(index, std::forward<Indexes>(indexes)...)
         ? blocks_[index]
         : *default_value_;
+  }
+
+  template<class DimIterType, typename Index, typename... Indexes>
+  DimIterType dim_begin0(Index&& lateral_index,
+                         Indexes&&... lateral_indexes) const {
+    return list_detail::SameSize(lateral_index,
+                                 std::forward<Indexes>(lateral_indexes)...)
+        ? DimIterType(blocks_.data() + lateral_index,
+                      default_value_, lateral_index)
+        : DimIterType(nullptr, default_value_, -1);
+  }
+
+  template<class DimIterType, typename Index, typename... Indexes>
+  DimIterType dim_end0(Index&& lateral_index,
+                       Indexes&&... lateral_indexes) const {
+    const auto& nonlateral_size = this->sizes_[DimIterType::kDim];
+    return list_detail::SameSize(lateral_index,
+                                 std::forward<Indexes>(lateral_indexes)...)
+        ? DimIterType(blocks_.data() + lateral_index,
+                      default_value_, lateral_index - nonlateral_size)
+        : DimIterType(nullptr, default_value_, -1 - nonlateral_size);
   }
 
   mutable std::vector<DataType> blocks_;

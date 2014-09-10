@@ -177,6 +177,82 @@ TEST(DiagTest, SizeT2D1x1) {
   EXPECT_EQ(d_1_1.values().end(), vit);
   EXPECT_EQ(3, d_1_1.values().size());
 
+  // validate dimension iteration
+  // d_1_1.dim_begin<0>(0) != d_1_1.dim_begin<1>(0);  // compile error - OK
+  auto dit = d_1_1.dim_begin<0>(0);
+  EXPECT_EQ(d_1_1.dim_begin<0>(0), dit);
+  EXPECT_EQ(0, *dit++);
+  EXPECT_EQ(-1, *dit);
+  EXPECT_EQ(*d_1_1.dim_begin<0>(1), *dit);
+  EXPECT_EQ(-1, *++dit);
+  EXPECT_NE(d_1_1.dim_begin<0>(0), dit);
+  auto cdit = d_1_1.dim_cbegin<0>(0);
+  ++ ++ cdit;
+  EXPECT_EQ(-1, *cdit);
+  EXPECT_EQ(dit, cdit);
+  ++dit;
+  EXPECT_NE(dit, cdit);
+  EXPECT_EQ(dit, d_1_1.dim_end<0>(0));
+  cdit = dit;
+  EXPECT_EQ(cdit, dit);
+  EXPECT_EQ(cdit, d_1_1.dim_cend<0>(0));
+  typedef decltype(dit) DIT;
+  static_assert(!std::is_convertible<decltype(cdit), DIT>(), "");
+  static_assert(!std::is_assignable<DIT, decltype(default_val)>(), "");
+}
+
+TEST(DiagTest, DiagonalDimIteration3D) {
+  static char default_val = 0;
+  Diag<char, unsigned, 1, 1, 1> d_1_1_1(&default_val, 5, 3, 4);
+  for (unsigned i = 0; i < 3; ++i)
+    d_1_1_1(i, i, i) = 1;
+  auto begin0 = [&](unsigned c0, unsigned c1) {
+    return d_1_1_1.dim_begin<0>(c0, c1);
+  };
+  auto end0 = [&](unsigned c0, unsigned c1) {
+    return d_1_1_1.dim_end<0>(c0, c1);
+  };
+
+  // verify value iterations that pass through the diagonal
+  for (unsigned c1 = 0; c1 < 3; ++c1) {
+    auto dit = begin0(c1, c1), dit_end = end0(c1, c1);
+    for (unsigned c2 = 0; c2 < 3; ++c2) {
+      EXPECT_NE(dit, dit_end);
+      EXPECT_EQ(c1 == c2, *dit++) << "dim_begin<0>(" << c1 << ", " << c1
+                                  << ") + " << c2;
+    }
+    EXPECT_NE(dit, dit_end);
+    EXPECT_NE(++dit, dit_end);
+    EXPECT_EQ(++dit, dit_end);
+  }
+
+  // verify value iterations that never passes through the diagonal
+  for (unsigned c1 = 0; c1 < 3; ++c1)
+    for (unsigned c2 = 0; c2 < 3; ++c2) {
+      if (c1 == c2)
+        continue;
+      auto dit = begin0(c1, c2), dit_end = end0(c1, c2);
+      for (unsigned j = 0; j < 3; ++j) {
+        EXPECT_NE(dit, dit_end);
+        EXPECT_FALSE(*dit++) << "(dim_begin<0>(" << c1 << ", " << c2 << ") + "
+                             << j << ") != 0";
+      }
+      EXPECT_NE(dit, dit_end);
+      EXPECT_NE(++dit, dit_end);
+      EXPECT_EQ(++dit, dit_end);
+    }
+
+  // verify value iteration that passess outside of the diagonal's bounding box
+  {
+    const unsigned c0 = 4, c1 = 2;
+    auto dit = d_1_1_1.dim_begin<2>(c0, c1);
+    auto dit_end = d_1_1_1.dim_end<2>(c0, c1);
+    for (int i = 0; i < 4; ++i) {
+      EXPECT_EQ(0, *dit);
+      EXPECT_NE(dit++, dit_end) << "i = " << i;
+    }
+    EXPECT_EQ(dit, dit_end);
+  }
 }
 
 TEST(DiagTest, MakeList) {
