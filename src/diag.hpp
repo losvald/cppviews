@@ -342,8 +342,6 @@ class V_LIST_TYPE
 #undef V_THIS_BASE_TYPE
 #undef V_LIST_TYPE
 
- public:
-  typedef BlockSize BlockSizeType;
   typedef detail::DiagValueIter<DataType, BlockSize, block_sizes...> ValueIter;
 
   class ValuesView : public View<DataType> {
@@ -373,7 +371,9 @@ class V_LIST_TYPE
     List* list_;
     friend class List;
   };
-  friend class ValuesView;
+
+ public:
+  typedef BlockSize BlockSizeType;
 
   template<typename... Sizes>
   List(DataType* default_value, const size_t& size, Sizes&&... sizes)
@@ -504,7 +504,6 @@ class V_LIST_TYPE
 #undef V_THIS_BASE_TYPE
 #undef V_LIST_TYPE
 
- public:
   class ValuesView : public View<DataType> {
    public:
     typedef detail::SimpleDiagValueIter<DataType> Iterator;
@@ -563,7 +562,7 @@ class V_LIST_TYPE
 
     template<typename V2>
     EnableIfConvertible<V2, V, bool>
-    IsEqual(const DimIter<V2, dim>& other) const override {
+    IsEqual(const DimIter<V2, dim>& other) const {
       return offset_ == other.offset_;
     }
 
@@ -580,6 +579,7 @@ class V_LIST_TYPE
   template<unsigned dim>
   using ConstDimIterator = DimIter<const DataType, dim>;
 
+ public:
   template<typename... Sizes>
   List(DataType* default_value, const size_t& size, Sizes&&... sizes)
       : DiagHelper(size, sizes...),
