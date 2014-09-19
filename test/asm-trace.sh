@@ -1,9 +1,10 @@
 #!/bin/bash
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 BINARY" >&2
+    echo "Usage: $0 BINARY [ARG...]" >&2
     exit 1
 fi
 bin="$1"
+shift
 scriptdir=$(dirname "$(readlink -f "$0")")
 gdbinit="$scriptdir/$(basename "$bin").gdbinit"
 asmtrace="$bin.asmtrace"
@@ -14,7 +15,7 @@ fi
 
 RCPAT='^\s*\[\?Inferior'
 SIGPAT='^Program r'
-status=$(gdb -batch -x "$gdbinit" "$bin" 2>/dev/null \
+status=$(gdb -batch -x "$gdbinit" --args "$bin" "$@" 2>/dev/null \
     | grep -e '^=> ' -e "$RCPAT" -e "$SIGPAT" | tee "$asmtrace" \
     | tail | grep -e "$RCPAT" -e "$SIGPAT")
 rc=$(echo "$status" | sed 's/^.* \(.*\).$/\1/')
