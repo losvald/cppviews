@@ -13,12 +13,17 @@ if ! [ -e "$gdbinit" ]; then
 fi
 
 RCPAT='^\s*\[\?Inferior'
-rc=$(gdb -batch -x "$gdbinit" "$bin" 2>/dev/null \
-    | grep -e "$RCPAT" -e '^=> ' | tee "$asmtrace" \
-    | tail | grep "$RCPAT" | sed 's/^.* \(.*\).$/\1/')
-if [ -z "$rc" ] || [ "$rc" == "killed" ]; then
-    echo "Error: trace too long." >&2
+SIGPAT='^Program r'
+status=$(gdb -batch -x "$gdbinit" "$bin" 2>/dev/null \
+    | grep -e '^=> ' -e "$RCPAT" -e "$SIGPAT" | tee "$asmtrace" \
+    | tail | grep -e "$RCPAT" -e "$SIGPAT")
+rc=$(echo "$status" | sed 's/^.* \(.*\).$/\1/')
+if echo "$status" | grep -q "$SIGPAT"; then
+    echo "Error: $status" >&2
     exit 3
+elif [ -z "$rc" ] || [ "$rc" == "killed" ]; then
+    echo "Error: trace too long." >&2
+    exit 4
 fi
 
 # strip off instructions after returning from main() (process cleanup by the OS)
