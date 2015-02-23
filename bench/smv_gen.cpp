@@ -178,6 +178,8 @@ void Generate(const std::string& name, const rapidjson::Document& doc,
   *os << "#ifndef " << guard  << kLF
       << "#define " << guard << kLF
       << kLF
+      << R"(#include "facade.hpp")" << kLF
+      << kLF
       << R"(#include "../../smv_factory.hpp")" << kLF
       << R"(#include "../../gui/sm/view_type.hpp")" << kLF
       << kLF
@@ -188,7 +190,8 @@ void Generate(const std::string& name, const rapidjson::Document& doc,
       << R"(#define SM_BASE_TYPE \)" << kLF
       << kIndent << GetNestingType(doc, data_type) <<
       "  // avoid type repetition" << kLF
-      << kIndent << kIndent << ": public SM_BASE_TYPE {" << kLF
+      << kIndent << kIndent << ": public SM_BASE_TYPE"
+      << ", public SmvFacade<" << name << "> {" << kLF
       << kIndent << "typedef SM_BASE_TYPE BaseType;" << kLF
       << "#undef SM_BASE_TYPE" << kLF
       << kLF
@@ -276,7 +279,6 @@ int main(int argc, char* argv[]) {
     sm.Init(mtx_stream);
   }
 
-  assert(0);
   Generate(name, doc, sm, data_type, &cout);
   return 0;
 }

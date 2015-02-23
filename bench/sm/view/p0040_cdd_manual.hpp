@@ -1,6 +1,8 @@
 #ifndef CPPVIEWS_BENCH_SM_VIEW_P0040_CDD_MANUAL_HPP_
 #define CPPVIEWS_BENCH_SM_VIEW_P0040_CDD_MANUAL_HPP_
 
+#include "facade.hpp"
+
 #include "../../smv_factory.hpp"
 #include "../../gui/sm/view_type.hpp"
 
@@ -10,7 +12,7 @@
 class p0040_cdd_manual
 #define SM_BASE_TYPE                                            \
   v::Chain<v::ListBase<int, 2>, 1>  // avoid type repetition
-    : public SM_BASE_TYPE {
+    : public SM_BASE_TYPE, public SmvFacade<p0040_cdd_manual> {
   typedef SM_BASE_TYPE BaseType;
 #undef SM_BASE_TYPE
 
