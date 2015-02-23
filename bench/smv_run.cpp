@@ -13,12 +13,14 @@
 #include <map>
 #include <memory>
 #include <random>
+#include <set>
 #include <string>
 #include <utility>
 
 typedef SmvFactory<SM_NAME> SmvFactoryType;
 typedef SmvFactoryType::ListType Smv;
 typedef SmvFactoryType::CoordType Coord;
+typedef Smv::DataType Data;
 
 #define SMV_NANOS_BETWEEN(before, after)                                \
   std::chrono::duration_cast<std::chrono::nanoseconds>(after - before).count()
@@ -49,6 +51,7 @@ struct SmvRunOptions : public ProgramOptions<> {
                      this),
         all_runs('a', "all-runs", "Print times of each benchmark run", this),
         seed('s', "seed", "Sets a positive integer to be used as a seed", this),
+        vector_density("vector-density", "Make vector to mult sparse.", this),
         access_count('c', "access-count",
                      "Sets the total number of accesses the sparse matrix view",
                      this) {}
@@ -73,6 +76,7 @@ struct SmvRunOptions : public ProgramOptions<> {
   Option<> all_runs;
   Option<unsigned> seed;
 
+  Option<double> vector_density;
   Option<size_t> access_count;
 
  protected:
@@ -91,6 +95,8 @@ struct SmvRunOptions : public ProgramOptions<> {
     SetIfNot(1, &iter_count);
     SetIfNot(1, &repeat_count);
     SetIfNot(false, &all_runs);
+
+    SetIfNot(1.0, &vector_density);
   }
 
  private:
@@ -263,6 +269,50 @@ struct NonZeroSequentialIteration : public Benchmark {
   size_t access_count_;
 };
 
+struct MatrixVectorMultiplication : public Benchmark {
+  MatrixVectorMultiplication() : vi(gPO.vector_density() * ColCount(smv_)) {
+    if (gPO.verbosity() > 1)
+      std::cout << "\tVector to multiply: rows=" << ColCount(smv_)
+                << " non-zeroes=" << vi.size() << std::endl;
+  }
+
+  void Init() override {
+    std::uniform_int_distribution<Coord> index_dis(0, ColCount(smv_) - 1);
+    std::set<Coord> inds;  // distinct indices in range [0, ColCount(smv_))
+    while (inds.size() != vi.size()) inds.insert(index_dis(gen_));
+    std::conditional<
+      std::is_integral<Data>::value,
+      std::uniform_int_distribution<Data>,
+      std::uniform_real_distribution<Data>
+      >::type value_dis(-100, 100);
+    auto ind_it = inds.begin();
+    for (auto& e : vi) {
+      auto val = value_dis(gen_);
+      if (std::is_integral<Data>::value)  // disallow 0s for integral data types
+        while (val == 0) val = value_dis(gen_);
+      e = std::make_pair(*ind_it++, val);
+    }
+    if (gPO.verbosity() > 2)
+      for (const auto& e : vi)
+        std::cout << "\tindex=" << e.first << "; value=" << e.second << "\n";
+  }
+
+  void Run() override {
+    std::vector<Data> v;
+    smv_.VecMult(vi, &v);
+    if (!gPO.dry_run()) {
+      for (auto it = v.cbegin(), it_end = v.cend(); it != it_end; ++it)
+        hash_ += *it;
+    } else {  // if dry run, hash the generated sparse vector instead of result
+      for (auto it = vi.cbegin(), it_end = vi.cend(); it != it_end; ++it)
+        hash_ += it->first + it->second;
+    }
+  }
+
+ private:
+  VecInfo<Data, Coord> vi;
+};
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -285,6 +335,7 @@ int main(int argc, char* argv[]) {
     {"nra", [] { return new NonZeroRandomAccess; } },
     {"zra", [] { return new ZeroRandomAccess; } },
     {"nsi", [] { return new NonZeroSequentialIteration; } },
+    {"mvm", [] { return new MatrixVectorMultiplication; } },
   };
 
   if (gPO.list()) {
