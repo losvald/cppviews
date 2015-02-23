@@ -64,6 +64,17 @@ class SmvFacade<V_THIS_ADAPTEE_TYPE>
         sm_(row_count, col_count),
         values_(sm_) {}
 
+  void VecMult(const VecInfo<DataType, CoordType>& vi,
+               std::vector<DataType>* res) const {
+    Eigen::SparseVector<T> v(ColCount(*this));
+    for (const auto& e : vi)
+      v.coeffRef(e.first) = e.second;
+    decltype(v) v_res = sm_ * v;
+    res->resize(RowCount(*this));
+    for (CoordType r = 0; r < res->size(); ++r)
+      (*res)[r] = v_res.coeff(r);
+  }
+
   DataType& operator()(unsigned row, unsigned col) {
     return sm_.coeffRef(row, col);
   }

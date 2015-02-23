@@ -3,6 +3,9 @@
 
 #include "../src/list.hpp"
 
+#include <vector>
+#include <utility>
+
 typedef unsigned DefaultCoord;
 
 namespace detail {
@@ -45,5 +48,8 @@ T* ZeroPtr() {
   static T zero{};
   return &zero;
 }
+
+template<typename T, typename Coord = DefaultCoord>
+using VecInfo = std::vector<std::pair<Coord, T>>;
 
 #endif  /* CPPVIEWS_BENCH_SMV_HPP_ */
