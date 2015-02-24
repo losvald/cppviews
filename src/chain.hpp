@@ -155,19 +155,21 @@ class List<
   for (unsigned dim = 0; dim < chain_dim; ++dim) do body while (false); \
   for (unsigned dim = chain_dim + 1; dim < dims; ++dim) do body while (false);
 
-  typedef ListBase<V_THIS_DATA_TYPE, dims> ListBaseType;
+ public:
+  // redeclared for convenience of the implementation
+  typedef V_THIS_DATA_TYPE DataType;
+#undef V_THIS_DATA_TYPE
+
+ private:
+  typedef ListBase<DataType, dims> ListBaseType;
   typedef detail::ChainedListVector<SublistType, chain_dim> Container;
+  typedef std::array<size_t, dims - 1> LateralOffset;
   struct Disabler {};  // used for SFINAE (to disable constructors)
 
  public:
-  typedef std::array<size_t, dims - 1> LateralOffset;
+  typedef typename ListBaseType::SizeArray SizeArray;  // bring to scope
   typedef std::pair<size_t, LateralOffset> LateralOffsetEntry;
   typedef std::pair<size_t, size_t> GapEntry;
-
-  // redeclared for convenience of the implementation
-  typedef V_THIS_DATA_TYPE DataType;
-  typedef typename ListBaseType::SizeArray SizeArray;
-#undef V_THIS_DATA_TYPE
 
   typedef detail::ChainValues<SublistType> ValuesView;
 
@@ -422,6 +424,7 @@ class List<
   typedef detail::UniformlyChainedListVector<
     SublistType, chain_dim, uniform_size_, gap_before_, gap_after_> Container;
 
+ public:
   // redeclared for convenience of the implementation
   typedef V_THIS_DATA_TYPE DataType;
   typedef typename ListBaseType::SizeArray SizeArray;
