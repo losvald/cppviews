@@ -554,6 +554,7 @@ class V_LIST_TYPE
         : offset_(copy.offset_),
           block_(copy.block_),
           default_value_(copy.default_value_) {}
+    DimIter() = default;
 
     static constexpr unsigned kDim = dim;
 
@@ -574,12 +575,14 @@ class V_LIST_TYPE
     ValuePtr default_value_;
   };
 
+ public:
+  // (Const)DimIterator either needs to be public or the outer class should be
+  // friend to all nesting classes (messy)
   template<unsigned dim>
   using DimIterator = DimIter<DataType, dim>;
   template<unsigned dim>
   using ConstDimIterator = DimIter<const DataType, dim>;
 
- public:
   template<typename... Sizes>
   List(DataType* default_value, const size_t& size, Sizes&&... sizes)
       : DiagHelper(size, sizes...),
