@@ -177,7 +177,8 @@ TEST(DiagTest, SizeT2D1x1) {
   EXPECT_EQ(d_1_1.values().end(), vit);
   EXPECT_EQ(3, d_1_1.values().size());
 
-  // validate dimension iteration
+  // Validate dimension iteration
+
   // d_1_1.dim_begin<0>(0) != d_1_1.dim_begin<1>(0);  // compile error - OK
   auto dit = d_1_1.dim_begin<0>(0);
   EXPECT_EQ(d_1_1.dim_begin<0>(0), dit);
@@ -199,6 +200,44 @@ TEST(DiagTest, SizeT2D1x1) {
   typedef decltype(dit) DIT;
   static_assert(!std::is_convertible<decltype(cdit), DIT>(), "");
   static_assert(!std::is_assignable<DIT, decltype(default_val)>(), "");
+
+  d_1_1(0, 0) = 42;
+  auto edit0 = d_1_1.entry_dim_begin<0>(0);
+  EXPECT_NE(edit0, d_1_1.entry_dim_end<0>(0));
+  EXPECT_EQ(0, edit0->indexes()[0]);
+  EXPECT_EQ(0, edit0->indexes()[1]);
+  EXPECT_EQ(42, edit0->value());
+  EXPECT_EQ(++edit0, d_1_1.entry_dim_end<0>(0));
+  d_1_1(2, 2) = 22;
+  edit0 = d_1_1.entry_dim_begin<0>(2);
+  EXPECT_NE(edit0, d_1_1.entry_dim_end<0>(2));
+  EXPECT_EQ((decltype(d_1_1)::SizeArray{{2, 2}}), edit0->indexes());
+  EXPECT_EQ(22, edit0->value());
+  EXPECT_EQ(++edit0, d_1_1.entry_dim_end<0>(2));
+  auto edit1 = d_1_1.entry_dim_begin<1>(1);
+  EXPECT_NE(edit1, d_1_1.entry_dim_end<1>(1));
+  EXPECT_EQ((decltype(d_1_1)::SizeArray{{1, 1}}), edit1->indexes());
+  edit1->value() = 130;
+  EXPECT_EQ(130, d_1_1(1, 1));
+  EXPECT_EQ(130, edit1->value());
+  EXPECT_EQ(++edit1, d_1_1.entry_dim_end<1>(1));
+  static_assert(!std::is_convertible<decltype(edit0), decltype(edit1)>(), "");
+  static_assert(!std::is_convertible<decltype(edit1), decltype(edit0)>(), "");
+
+  // verify entry dimension iterator non-const to const conversion & equality
+  auto edcit1 = d_1_1.entry_dim_cbegin<1>(1);
+  edit1 = d_1_1.entry_dim_begin<1>(1);
+  EXPECT_EQ(edit1, edcit1);
+  EXPECT_EQ(edcit1, edit1);
+  ++edcit1;
+  EXPECT_NE(edit1, edcit1);
+  EXPECT_NE(edcit1, edit1);
+  edcit1 = edit1;
+  EXPECT_EQ((decltype(d_1_1)::SizeArray{{1, 1}}), edcit1->indexes());
+  EXPECT_EQ(edcit1, edit1);
+  edcit1 = d_1_1.entry_dim_end<1>(1);
+  EXPECT_NE(edit1, edcit1);
+  static_assert(std::is_same<const int&, decltype(edcit1->value())>::value, "");
 }
 
 TEST(DiagTest, DiagonalDimIteration3D) {
@@ -212,10 +251,17 @@ TEST(DiagTest, DiagonalDimIteration3D) {
   auto end0 = [&](unsigned c0, unsigned c1) {
     return d_1_1_1.dim_end<0>(c0, c1);
   };
+  auto e_begin0 = [&](unsigned c0, unsigned c1) {
+    return d_1_1_1.entry_dim_begin<0>(c0, c1);
+  };
+  auto e_end0 = [&](unsigned c0, unsigned c1) {
+    return d_1_1_1.entry_dim_end<0>(c0, c1);
+  };
 
-  // verify value iterations that pass through the diagonal
+  // verify iterations that pass through the diagonal
   for (unsigned c1 = 0; c1 < 3; ++c1) {
-    auto dit = begin0(c1, c1), dit_end = end0(c1, c1);
+#define V_TEST_DEF_ITER(name, lam) auto name = lam(c1, c1);
+    V_TEST_DEF_ITER(dit, begin0); V_TEST_DEF_ITER(dit_end, end0);
     for (unsigned c2 = 0; c2 < 3; ++c2) {
       EXPECT_NE(dit, dit_end);
       EXPECT_EQ(c1 == c2, *dit++) << "dim_begin<0>(" << c1 << ", " << c1
@@ -224,9 +270,16 @@ TEST(DiagTest, DiagonalDimIteration3D) {
     EXPECT_NE(dit, dit_end);
     EXPECT_NE(++dit, dit_end);
     EXPECT_EQ(++dit, dit_end);
+    // entry iterator must make exactly one iteration with indexes {c1, c1, c1}
+    V_TEST_DEF_ITER(edit, e_begin0); V_TEST_DEF_ITER(edit_end, e_end0);
+    EXPECT_NE(edit_end, edit);
+    EXPECT_EQ(1, edit->value());
+    EXPECT_EQ(decltype(d_1_1_1)::SizeArray({c1, c1, c1}), edit->indexes());
+    EXPECT_EQ(edit_end, ++edit);
+#undef V_TEST_DEF_ITER
   }
 
-  // verify value iterations that never passes through the diagonal
+  // verify iterations that never pass through the diagonal
   for (unsigned c1 = 0; c1 < 3; ++c1)
     for (unsigned c2 = 0; c2 < 3; ++c2) {
       if (c1 == c2)
@@ -240,9 +293,10 @@ TEST(DiagTest, DiagonalDimIteration3D) {
       EXPECT_NE(dit, dit_end);
       EXPECT_NE(++dit, dit_end);
       EXPECT_EQ(++dit, dit_end);
+      EXPECT_EQ(e_begin0(c1, c2), e_end0(c1, c2));
     }
 
-  // verify value iteration that passess outside of the diagonal's bounding box
+  // verify iterations that pass outside of the diagonal's bounding box
   {
     const unsigned c0 = 4, c1 = 2;
     auto dit = d_1_1_1.dim_begin<2>(c0, c1);
@@ -252,6 +306,8 @@ TEST(DiagTest, DiagonalDimIteration3D) {
       EXPECT_NE(dit++, dit_end) << "i = " << i;
     }
     EXPECT_EQ(dit, dit_end);
+    EXPECT_EQ(d_1_1_1.entry_dim_begin<2>(c0, c1),
+              d_1_1_1.entry_dim_end<2>(c0, c1));
   }
 }
 

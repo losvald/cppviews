@@ -575,6 +575,63 @@ class V_LIST_TYPE
     ValuePtr default_value_;
   };
 
+  template<typename V, unsigned dim>
+  class EntryDimIter
+      : public List::template EntryDimIteratorBase<EntryDimIter<V, dim>,
+                                                   V,
+                                                   std::forward_iterator_tag> {
+    V_DEFAULT_ITERATOR_DERIVED_HEAD(EntryDimIter);
+    template<typename, unsigned> friend class EntryDimIter;
+    template<typename FromType, typename ToType, class Type>
+    using EnableIfConvertible = typename std::enable_if<
+      std::is_convertible<FromType, ToType>::value, Type>::type;
+    typedef typename detail::DiagBlockVectorTraits<V>::ValuePtr ValuePtr;
+
+   public:
+    explicit EntryDimIter(ValuePtr block, const size_t& nonlateral_index = -1)
+        : EntryDimIter(block, nonlateral_index,
+                       cpp14::make_index_sequence<dims>()) {
+    }
+    // TODO: consider adding a conversion from Entry<V> to Entry<const V>,
+    // possibly via a hack: *reinterpret_cast<decltype(e_)*>(&tmp.e_))) // UB?
+    template<typename V2>
+    EntryDimIter(const EntryDimIter<V2, dim>& copy,
+            EnableIfConvertible<V2*, V*, typename EntryDimIter::Enabler>
+            enabler = typename EntryDimIter::Enabler())
+        : e_(&copy.e_.value(), typename List::SizeArray(copy.e_.indexes())) {}
+    // provide a move constructor to avoid copying/creating a new array in Entry
+    template<typename V2>
+    EntryDimIter(EntryDimIter<V2, dim>&& tmp,
+            EnableIfConvertible<V2*, V*, typename EntryDimIter::Enabler>
+            enabler = typename EntryDimIter::Enabler())
+        : e_(&tmp.e_.value(), std::move(this->GetEntryIndexes(tmp.e_))) {}
+    EntryDimIter() = default;
+
+    static constexpr unsigned kDim = dim;
+
+   protected:
+    void Increment() override {
+      this->template SetEntryIndex<dim>(-1, e_);
+    }
+
+    template<typename V2>
+    EnableIfConvertible<V2, V, bool>
+    IsEqual(const EntryDimIter<V2, dim>& other) const {
+      return std::get<dim>(e_.indexes()) == std::get<dim>(other.e_.indexes());
+    }
+
+    typename EntryDimIter::reference ref() const override { return e_; }
+
+   private:
+    template<size_t... Is>
+    EntryDimIter(ValuePtr block, const size_t& nonlateral_index,
+                 cpp14::index_sequence<Is...>)
+        : e_(block, typename List::SizeArray{
+            list_detail::ConstSize<Is>(nonlateral_index)...}) {}
+
+    mutable typename EntryDimIter::value_type e_;
+  };
+
  public:
   // Definitions of dimension iterators: template<dim> (Const)[<Prefix>]DimIter
   // make them public rather than friend to all nesting classes (messy)
@@ -590,6 +647,7 @@ class V_LIST_TYPE
   V_THIS_DEF_DIM_ITERATORS0(Const, Prefix ## DimIter, ator)
 
   V_THIS_DEF_DIM_ITERATORS()  // no Prefix -> (Const)DimIterator
+  V_THIS_DEF_DIM_ITERATORS(Entry)
 
 #undef V_THIS_DEF_DIM_ITERATORS
 #undef V_THIS_DEF_DIM_ITERATORS0
@@ -645,6 +703,8 @@ class V_LIST_TYPE
 
   V_THIS_DEF_DIM_ITER_ACCESSORS(DimIterator, ,)
   V_THIS_DEF_DIM_ITER_ACCESSORS(ConstDimIterator, , c)
+  V_THIS_DEF_DIM_ITER_ACCESSORS(EntryDimIterator, entry_,)
+  V_THIS_DEF_DIM_ITER_ACCESSORS(ConstEntryDimIterator, entry_, c)
 
 #undef V_THIS_DEF_DIM_ITER_ACCESSORS
 #undef V_THIS_DEF_DIM_ITER_ACCESSORS0
@@ -684,6 +744,24 @@ class V_LIST_TYPE
         ? DimIterType(blocks_.data() + lateral_index,
                       default_value_, lateral_index - nonlateral_size)
         : DimIterType(nullptr, default_value_, -1 - nonlateral_size);
+  }
+
+  template<class DimIterType, typename Index, typename... Indexes>
+  DimIterType entry_dim_begin0(Index&& lateral_index,
+                               Indexes&&... lateral_indexes) const {
+    return list_detail::SameSize(lateral_index,
+                                 std::forward<Indexes>(lateral_indexes)...)
+        ? DimIterType(blocks_.data() + lateral_index, lateral_index)
+        : DimIterType(nullptr);
+  }
+
+  template<class DimIterType, typename Index, typename... Indexes>
+  DimIterType entry_dim_end0(Index&& lateral_index,
+                             Indexes&&... lateral_indexes) const {
+    return list_detail::SameSize(lateral_index,
+                                 std::forward<Indexes>(lateral_indexes)...)
+        ? DimIterType(blocks_.data() + lateral_index)
+        : DimIterType(nullptr);
   }
 
   mutable std::vector<DataType> blocks_;
