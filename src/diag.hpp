@@ -621,11 +621,11 @@ class V_LIST_TYPE
     return *reinterpret_cast<typename View<DataType>::Iterator*>(NULL);
   }
 
-  // define dimension iterator accessors with the signature:
+  // Define dimension iterator accessors with the signature:
   //   template<unsigned dim, typename Index, typename... Indexes>
-  //   [Const]DimIterator<dim> dim_[c](begin|end)<dim>(
+  //   [Const]DimIterator<dim> dim_[c]<infix>(begin|end)\<dim\>(
   //       Index&& lateral_index, Indexes&&... lateral_indexes) const;
-  //  each of which forwards the call to the method dim_[c](begin|end)0<dim>
+  // Each forwards the call to dim_[c]<infix>(begin|end)0\<dim\>
 #define V_THIS_DEF_DIM_ITER_ACCESSOR0(Tpl, method, method0)             \
   template<unsigned dim, typename Index, typename... Indexes>           \
   Tpl<dim> method(Index&& lateral_index, Indexes&&... lateral_indexes) const { \
@@ -633,17 +633,23 @@ class V_LIST_TYPE
         std::forward<Index>(lateral_index),                             \
         std::forward<Indexes>(lateral_indexes)...);                     \
   }
-#define V_THIS_DEF_DIM_ITER_ACCESSOR(Tpl, c, which)                     \
-  V_THIS_DEF_DIM_ITER_ACCESSOR0(Tpl, dim_ ## c ## which, dim_ ## which ## 0)
-#define V_THIS_DEF_DIM_ITER_ACCESSORS(Tpl, c)              \
-  V_THIS_DEF_DIM_ITER_ACCESSOR(Tpl, c, begin)              \
-  V_THIS_DEF_DIM_ITER_ACCESSOR(Tpl, c, end)
+#define V_THIS_DEF_DIM_ITER_ACCESSOR1(Tpl, prefix, c, which)            \
+  V_THIS_DEF_DIM_ITER_ACCESSOR0(Tpl, prefix ## c ## which, prefix ## which ## 0)
+#define V_THIS_DEF_DIM_ITER_ACCESSOR(Tpl, infix, c, which)       \
+      V_THIS_DEF_DIM_ITER_ACCESSOR1(Tpl, infix ## dim_, c, which)
+#define V_THIS_DEF_DIM_ITER_ACCESSORS0(Tpl, infix, c)            \
+  V_THIS_DEF_DIM_ITER_ACCESSOR(infix, Tpl, c, begin)             \
+  V_THIS_DEF_DIM_ITER_ACCESSOR(infix, Tpl, c, end)
+#define V_THIS_DEF_DIM_ITER_ACCESSORS(Tpl, infix, c)     \
+  V_THIS_DEF_DIM_ITER_ACCESSORS0(infix, Tpl, c)
 
-  V_THIS_DEF_DIM_ITER_ACCESSORS(DimIterator, )
-  V_THIS_DEF_DIM_ITER_ACCESSORS(ConstDimIterator, c)
+  V_THIS_DEF_DIM_ITER_ACCESSORS(DimIterator, ,)
+  V_THIS_DEF_DIM_ITER_ACCESSORS(ConstDimIterator, , c)
 
 #undef V_THIS_DEF_DIM_ITER_ACCESSORS
+#undef V_THIS_DEF_DIM_ITER_ACCESSORS0
 #undef V_THIS_DEF_DIM_ITER_ACCESSOR
+#undef V_THIS_DEF_DIM_ITER_ACCESSOR1
 #undef V_THIS_DEF_DIM_ITER_ACCESSOR0
 
   const ValuesView& values() const override { return values_; }
