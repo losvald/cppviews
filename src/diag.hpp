@@ -576,12 +576,25 @@ class V_LIST_TYPE
   };
 
  public:
-  // (Const)DimIterator either needs to be public or the outer class should be
-  // friend to all nesting classes (messy)
-  template<unsigned dim>
-  using DimIterator = DimIter<DataType, dim>;
-  template<unsigned dim>
-  using ConstDimIterator = DimIter<const DataType, dim>;
+  // Definitions of dimension iterators: template<dim> (Const)[<Prefix>]DimIter
+  // make them public rather than friend to all nesting classes (messy)
+#define V_THIS_DEF_DIM_ITER_ALIAS(Alias, Tpl, Data)          \
+  template<unsigned dim>                                     \
+  using Alias = Tpl<Data, dim>;
+#define V_THIS_DEF_DIM_ITER_ALIASES(NonConstIter, ConstIter, Tpl)       \
+  V_THIS_DEF_DIM_ITER_ALIAS(NonConstIter, Tpl, DataType)                \
+  V_THIS_DEF_DIM_ITER_ALIAS(ConstIter, Tpl, const DataType)
+#define V_THIS_DEF_DIM_ITERATORS0(Const, Tpl, suffix) \
+  V_THIS_DEF_DIM_ITER_ALIASES(Tpl ## suffix, Const ## Tpl ## suffix, Tpl)
+#define V_THIS_DEF_DIM_ITERATORS(Prefix)                        \
+  V_THIS_DEF_DIM_ITERATORS0(Const, Prefix ## DimIter, ator)
+
+  V_THIS_DEF_DIM_ITERATORS()  // no Prefix -> (Const)DimIterator
+
+#undef V_THIS_DEF_DIM_ITERATORS
+#undef V_THIS_DEF_DIM_ITERATORS0
+#undef V_THIS_DEF_DIM_ITER_ALIASES
+#undef V_THIS_DEF_DIM_ITER_ALIAS
 
   template<typename... Sizes>
   List(DataType* default_value, const size_t& size, Sizes&&... sizes)
