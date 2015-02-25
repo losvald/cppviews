@@ -41,6 +41,9 @@ constexpr size_t ZeroSize() {
 template<size_t T>
 constexpr size_t ZeroSize() { return size_t{}; }
 
+template<size_t dummy>
+constexpr size_t ConstSize(const size_t& size) { return size; }
+
 template<class Container>
 size_t SizeSum(const Container& subcontainers) {
   size_t sum = 0;
@@ -377,8 +380,28 @@ template<typename T, unsigned dims = 1>
 class ListBase : public View<T>,
                  public Map<std::array<size_t, dims>, T> {
   // struct Disabler {};  // used for SFINAE (to disable constructors
+
+ protected:
+  template<class Derived, typename V, class Category, typename Distance>
+  class EntryDimIteratorBase;
+
  public:
   typedef std::array<size_t, dims> SizeArray;
+  template<typename V>
+  struct Entry {
+    explicit Entry(V* value, SizeArray&& indexes = SizeArray{})
+        : val_(value),
+          indexes_(std::move(indexes)) {}
+    const SizeArray& indexes() const { return indexes_; }
+    V& value() { return *val_; }
+   private:
+    V* val_;
+    SizeArray indexes_;
+    template<class, typename, class, typename>
+    friend class EntryDimIteratorBase;
+  };
+  static_assert(std::is_move_constructible<Entry<T> >::value, "");
+  static_assert(std::is_move_constructible<Entry<const T> >::value, "");
 
   static constexpr unsigned kDims = dims;
 
@@ -428,7 +451,8 @@ class ListBase : public View<T>,
   };
 
   // helper class for easy derivation of PolyDimIterator by the subclasses
-  template<class Derived, typename V, class Category, typename Distance>
+  template<class Derived, typename V, class Category,
+           typename Distance = std::ptrdiff_t>
   class DimIteratorBase
       : public DefaultIterator<Derived, Category, V, Distance>,
         public PolyDimIterator<V> {
@@ -443,6 +467,23 @@ class ListBase : public View<T>,
     }
     typename DimIteratorBase::IsEqualPointer equal() const override {
       return &IsEqual;
+    }
+  };
+
+  template<class Derived, typename V, class Category,
+           typename Distance = std::ptrdiff_t>
+  class EntryDimIteratorBase : public DimIteratorBase<Derived, Entry<V>,
+                                                      Category, Distance> {
+   protected:
+    // protected proxy functions to allow changes to Entry's indexes_
+    // (since friendship is not inheritable)
+    template<typename V2>
+    static constexpr SizeArray& GetEntryIndexes(Entry<V2>& e) {
+      return e.indexes_;
+    }
+    template<unsigned dim>
+    static constexpr void SetEntryIndex(const size_t& index, Entry<V>& e) {
+      std::get<dim>(e.indexes_) = index;
     }
   };
 
