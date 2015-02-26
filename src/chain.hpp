@@ -166,8 +166,97 @@ class List<
   typedef std::array<size_t, dims - 1> LateralOffset;
   struct Disabler {};  // used for SFINAE (to disable constructors)
 
+  template<typename V, unsigned dim>
+  class EntryDimIter
+      : public List::template EntryDimIteratorBase<EntryDimIter<V, dim>,
+                                                   V,
+                                                   // TODO: make bidirectional
+                                                   std::forward_iterator_tag> {
+    // TODO: Factor out most of the nested iterator logic into a helper class
+    V_DEFAULT_ITERATOR_DERIVED_HEAD(EntryDimIter);
+    template<typename, unsigned> friend class EntryDimIter;
+    template<typename FromType, typename ToType, class Type>
+    using EnableIfConvertible = typename std::enable_if<
+      std::is_convertible<FromType, ToType>::value, Type>::type;
+    typedef typename SublistType::template EntryDimIterator<dim> InnerIter;
+    typedef typename ListVector<SublistType>::ConstIterator OuterIter;
+    typedef typename List::NestingOffsetVector::const_iterator OffsetIter;
+
+   public:
+    template<typename... Indexes>
+    explicit EntryDimIter(OuterIter outer_cur, OuterIter outer_max,
+                          OffsetIter offset_cur,
+                          // TODO: use unique_ptr?
+                          // LateralOffset&& offset)
+                          Indexes&&... lateral_indexes)
+        : outer_cur_(outer_cur),
+          outer_max_(outer_max),
+          offset_cur_(offset_cur),
+          // offset_(std::move(offset)) {
+          offset_{{static_cast<size_t>(lateral_indexes)...}} {
+      InitInner(cpp14::index_sequence_for<Indexes...>());
+    }
+
+   protected:
+    void Increment() override {
+      if (++inner_cur_ == inner_end_)
+        do {
+          ++outer_cur_, ++offset_cur_;
+          InitInner(cpp14::make_index_sequence<dims - 1>());
+        } while (inner_cur_ == inner_end_ && outer_cur_ != outer_max_);
+    }
+
+    template<typename V2>
+    EnableIfConvertible<V2, V, bool>
+    IsEqual(const EntryDimIter<V2, dim>& other) const {
+      return outer_cur_ == other.outer_cur_ && inner_cur_ == other.inner_cur_;
+    }
+
+    typename EntryDimIter::reference ref() const override {
+      return *inner_cur_;
+    }
+
+   private:
+    template<size_t... Is>
+    void InitInner(cpp14::index_sequence<Is...>) {
+      // 0 [1] 2 3 // offset_cur
+      // 0     1 2 // Is
+      // Is >= chain_dim
+      InitInner0((std::get<Is>(offset_) -
+                 std::get<Is + (Is >= chain_dim)>(*offset_cur_))...);
+      OffsetInner(cpp14::make_index_sequence<dims>(), inner_cur_);
+      // TODO: we should change inner_end_ to inner_max_ and uncomment below
+      // OffsetInner(cpp14::make_index_sequence<dims>(), inner_end_);
+    }
+    template<typename... Offsets>
+    void InitInner0(Offsets&&... offsets) {
+      inner_end_ = outer_cur_->template entry_dim_end<dim>(
+          std::forward<Offsets>(offsets)...);
+      inner_cur_ = outer_cur_->template entry_dim_begin<dim>(
+          std::forward<Offsets>(offsets)...);
+    }
+    template<size_t... Is>
+    void OffsetInner(cpp14::index_sequence<Is...>, InnerIter& inner_it) {
+      static_assert(sizeof...(Is) == dims, "");
+      auto& inds = this->template GetEntryIndexes(*inner_it);
+      list_detail::Ignore(std::get<Is>(inds) += std::get<Is>(*offset_cur_)...);
+    }
+
+    OuterIter outer_cur_, outer_max_;
+    // std::array<size_t, dims - 1> offset_;
+    OffsetIter offset_cur_;
+    LateralOffset offset_;
+    InnerIter inner_cur_, inner_end_;
+  };
+
+  template<unsigned dim>
+  using EntryDimIterator = EntryDimIter<DataType, dim>;
+  template<unsigned dim>
+  using ConstEntryDimIterator = EntryDimIter<const DataType, dim>;
+
  public:
   typedef typename ListBaseType::SizeArray SizeArray;  // bring to scope
+  typedef std::vector<SizeArray> NestingOffsetVector;
   typedef std::pair<size_t, LateralOffset> LateralOffsetEntry;
   typedef std::pair<size_t, size_t> GapEntry;
 
@@ -175,7 +264,7 @@ class List<
 
   template<typename... Sizes>
   List(ListVector<SublistType>&& lists, DataType* default_value,
-       std::vector<SizeArray>&& nesting_offsets,
+       NestingOffsetVector&& nesting_offsets,
        const typename std::conditional<1 + sizeof...(Sizes) == dims,
        size_t, Disabler>::type& size, Sizes&&... sizes)
       : ListBaseType(size, std::forward<Sizes>(sizes)...),
@@ -292,6 +381,38 @@ class List<
     return *reinterpret_cast<typename View<DataType>::Iterator*>(NULL);
   }
 
+  // Define dimension iterator accessors with the signature:
+  //   template<unsigned dim, typename Index, typename... Indexes>
+  //   [Const]DimIterator<dim> dim_[c]<infix>(begin|end)\<dim\>(
+  //       Index&& lateral_index, Indexes&&... lateral_indexes) const;
+  // Each forwards the call to dim_[c]<infix>(begin|end)0\<dim\>
+#define V_THIS_DEF_DIM_ITER_ACCESSOR0(Tpl, method, method0)             \
+  template<unsigned dim, typename... Indexes>                           \
+  Tpl<dim> method(Indexes&&... lateral_indexes) const {                 \
+    return method0<Tpl<dim> >(                                          \
+        std::forward<Indexes>(lateral_indexes)...);                     \
+  }
+#define V_THIS_DEF_DIM_ITER_ACCESSOR1(Tpl, prefix, c, which)            \
+  V_THIS_DEF_DIM_ITER_ACCESSOR0(Tpl, prefix ## c ## which, prefix ## which ## 0)
+#define V_THIS_DEF_DIM_ITER_ACCESSOR(Tpl, infix, c, which)       \
+      V_THIS_DEF_DIM_ITER_ACCESSOR1(Tpl, infix ## dim_, c, which)
+#define V_THIS_DEF_DIM_ITER_ACCESSORS0(Tpl, infix, c)            \
+  V_THIS_DEF_DIM_ITER_ACCESSOR(infix, Tpl, c, begin)             \
+  V_THIS_DEF_DIM_ITER_ACCESSOR(infix, Tpl, c, end)
+#define V_THIS_DEF_DIM_ITER_ACCESSORS(Tpl, infix, c)    \
+  V_THIS_DEF_DIM_ITER_ACCESSORS0(infix, Tpl, c)
+
+  // V_THIS_DEF_DIM_ITER_ACCESSORS(DimIterator, ,)
+  // V_THIS_DEF_DIM_ITER_ACCESSORS(ConstDimIterator, , c)
+  V_THIS_DEF_DIM_ITER_ACCESSORS(EntryDimIterator, entry_,)
+  V_THIS_DEF_DIM_ITER_ACCESSORS(ConstEntryDimIterator, entry_, c)
+
+#undef V_THIS_DEF_DIM_ITER_ACCESSORS
+#undef V_THIS_DEF_DIM_ITER_ACCESSORS0
+#undef V_THIS_DEF_DIM_ITER_ACCESSOR
+#undef V_THIS_DEF_DIM_ITER_ACCESSOR1
+#undef V_THIS_DEF_DIM_ITER_ACCESSOR0
+
   const ValuesView& values() const override { return values_; }
 
   const SizeArray& nesting_offset(size_t index) const {
@@ -314,7 +435,7 @@ class List<
   typedef ImmutableSkipList<NonLateralBucketSizeGetter> SkipListType;
 
   static void ComputeLateralSize(const Container& lists,
-                                 const std::vector<SizeArray>& nesting_offsets,
+                                 const NestingOffsetVector& nesting_offsets,
                                  typename List::SizeArray& sizes,
                                  int dim) {
     auto& size = sizes[dim];
@@ -337,9 +458,9 @@ class List<
          1 + copy_n(offset.begin(), chain_dim, nesting_offset->begin()));
   }
 
-  static std::vector<SizeArray>&&
+  static NestingOffsetVector&&
   InsertDummies(Container& lists_, const List::SizeArray& sizes,
-                std::vector<SizeArray>&& nesting_offsets_) {
+                NestingOffsetVector&& nesting_offsets_) {
     if (!lists_.empty()) {
       detail::ChainHelper<SublistType>::InsertDummies(&lists_);
       lists_.Shrink();
@@ -356,9 +477,24 @@ class List<
   }
 #undef V_CHAIN_FOR_LATERAL_DIM
 
+  template<class DimIterType, typename... Indexes>
+  DimIterType entry_dim_begin0(Indexes&&... lateral_indexes) const {
+    return DimIterType(++lists_.cbegin(), --lists_.cend(),
+                       ++nesting_offsets_.cbegin(),
+                       std::forward<Indexes>(lateral_indexes)...);
+                       // LateralOffset{static_cast<size_t>(lateral_indexes)...});
+  }
+
+  template<class DimIterType, typename Index, typename... Indexes>
+  DimIterType entry_dim_end0(Indexes&&... lateral_indexes) const {
+    auto outer_max = --lists_.cend();
+    return DimIterType(outer_max, outer_max, --nesting_offsets_.cend(),
+                       std::forward<Indexes>(lateral_indexes)...);
+  }
+
   Container lists_;
   DataType* default_value_;
-  std::vector<SizeArray> nesting_offsets_;
+  NestingOffsetVector nesting_offsets_;
   SkipListType fwd_skip_list_;
   ValuesView values_;
 };
