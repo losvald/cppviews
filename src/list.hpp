@@ -392,6 +392,7 @@ class ListBase : public View<T>,
     explicit Entry(V* value, SizeArray&& indexes = SizeArray{})
         : val_(value),
           indexes_(std::move(indexes)) {}
+    Entry() = default;
     const SizeArray& indexes() const { return indexes_; }
     V& value() { return *val_; }
    private:
