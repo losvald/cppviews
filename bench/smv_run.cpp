@@ -10,6 +10,7 @@
 #include <functional>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <random>
@@ -303,6 +304,12 @@ struct MatrixVectorMultiplication : public Benchmark {
     if (!gPO.dry_run()) {
       for (auto it = v.cbegin(), it_end = v.cend(); it != it_end; ++it)
         hash_ += *it;
+      if (gPO.verbosity() > 3) {
+        using namespace std;
+        cout << "Result:\n";
+        copy(v.begin(), v.end(), ostream_iterator<Data>(cout, "\n"));
+        cout << flush;
+      }
     } else {  // if dry run, hash the generated sparse vector instead of result
       for (auto it = vi.cbegin(), it_end = vi.cend(); it != it_end; ++it)
         hash_ += it->first + it->second;
