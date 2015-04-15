@@ -1,6 +1,7 @@
 // The default SM type to be benchmarked is provided via smv_run.hpp
 // but it can be overriden through compiler flags (see smv_run.hpp)
 #include "smv_run.hpp"
+#include "smv_factory.hpp"
 
 #include "util/program_options.hpp"
 
@@ -17,6 +18,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 typedef SmvFactory<SM_NAME> SmvFactoryType;
 typedef SmvFactoryType::ListType Smv;
