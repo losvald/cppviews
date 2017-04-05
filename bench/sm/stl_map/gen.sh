@@ -55,6 +55,17 @@ class $sm
         (*this)(row, col) = sm(row, col);
       }
   }
+
+  void VecMult(const VecInfo<DataType, CoordType>& vi,
+               std::vector<DataType>* res) const {
+    res->resize(RowCount(*this));
+    for (CoordType r = 0, r_end = res->size(); r < r_end; ++r) {
+      DataType val = 0;
+      for (const auto& e : vi)
+        val += (*this)(r, e.first) * e.second;
+      (*res)[r] = val;
+    }
+  }
 };
 
 #endif  // $guard
