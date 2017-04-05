@@ -33,7 +33,7 @@ echo "#include \"../../smv_checker.cpp.tpl\"" >>"$cpp"
 [ -z "$CXXFLAGS" ] && \
     CXXFLAGS=$(grep 'AM_CXXFLAGS' "$src_dir/../Makefile.am" | \
     sed 's/[^=]*=//')
-[ -z $CC ] && CC=g++-4.8
+[ -z $CC ] && CC=g++
 
 echo "Compiling ..."
 compile_cmd="$CC $CXXFLAGS -o '$bin' '$cpp'"

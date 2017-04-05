@@ -20,7 +20,7 @@ trap "$cleanup_cmd" EXIT
 [ -z "$CXXFLAGS" ] && \
     CXXFLAGS=$(grep 'AM_CXXFLAGS' "$src_dir/../Makefile.am" | \
     sed 's/[^=]*=//')
-[ -z "$CC" ] && CC=g++-4.8
+[ -z "$CC" ] && CC=g++
 CXXFLAGS+=" -DSM_NAME=$name -include '$hpp'"
 
 echo "Compiling ..." >&2
