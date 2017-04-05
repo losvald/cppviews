@@ -56,6 +56,17 @@ class $sm
       }
     nondefault_cnt_ = sm.nonzero_count();
   }
+
+  void VecMult(const VecInfo<DataType, CoordType>& vi,
+               std::vector<DataType>* res) const {
+    arma::SpMat<$data_type> v(ColCount(*this), 1);
+    for (const auto& e : vi)
+      v(e.first) = e.second;
+    decltype(v) v_res = sm_ * v;
+    res->resize(RowCount(*this));
+    for (CoordType r = 0; r < res->size(); ++r)
+      (*res)[r] = v_res.at(r);
+  }
 };
 
 #endif  // $guard
