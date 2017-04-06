@@ -21,7 +21,8 @@ cat >"$hpp" <<EOF
 #ifndef $guard
 #define $guard
 
-#include "../../smv_facade.hpp"
+#include "facade.hpp"
+
 #include "../../smv_factory.hpp"
 #include "../../util/sparse_matrix.hpp"
 
