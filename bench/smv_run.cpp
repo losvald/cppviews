@@ -414,5 +414,9 @@ int main(int argc, char* argv[]) {
   auto real_avg = real_total / gPO.repeat_count();
   cout << TimeEntry("avg", real_avg) << TimeEntry("total", real_total);
 
+  if (gPO.access_count.count()) {
+    cout << "MIOPS\t" << gPO.access_count() * 1e3 / real_avg << endl;
+  }
+
   return 0;
 }
