@@ -259,10 +259,11 @@ struct NonZeroSequentialIteration : public Benchmark {
       const auto& values = smv_.values();
       size_t pos = std::min(values.size(), access_count_ - i);
       i += pos;
-      for (auto it = values.begin(); pos--; ++it) {
-        if (!gPO.dry_run())
+      if (!gPO.dry_run()) {
+        for (auto it = values.begin(); pos--; ++it)
           hash_ += *it;
-        else
+      } else {
+        while (pos--)
           hash_ += pos;
       }
     }
