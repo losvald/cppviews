@@ -16,6 +16,7 @@ unittest_all_SOURCES = test.cpp \
 	diag_test.cpp \
 	diag_chain_test.cpp \
 	list_test.cpp \
+	sparse_list_test.cpp \
 	bench/util/sparse_matrix_test.cpp
 
 speedtest_all_SOURCES = test.cpp \
