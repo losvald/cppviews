@@ -131,6 +131,25 @@ Indexes Generate(const JsonValue& val, const SM& sm,
       Indent(indent);
       return first;
     }
+    case kViewTypeSparse:
+      *os << "[] {" << kLF
+          << *indent << "auto v = v::MakeList(v::SparseListTag<2>()"
+          << ", ZeroPtr<" << data_type << ">()"
+          << ", " << size.row << ", " << size.col << ");" << kLF;
+      for (auto row = first.row; row <= last.row; ++row) {
+        for (auto cols = sm.nonzero_col_range(row, first.col, last.col + 1);
+             cols.first != cols.second; ++cols.first) {
+          auto col = *cols.first;
+          *os << *indent << "v.get({" << row-first.row
+              << ", " << col-first.col << "}) = "
+              << sm(row, col) << ";" << kLF;
+        }
+      }
+      *os << *indent << "return v;" << kLF;
+      Unindent(indent);
+      *os << *indent << "}()";
+      Indent(indent);
+      return first;
     default:
       throw std::runtime_error("unsupported view type");
   }
@@ -185,6 +204,7 @@ void Generate(const std::string& name, const rapidjson::Document& doc,
       << kLF
       << R"(#include "../../../src/chain.hpp")" << kLF
       << R"(#include "../../../src/diag.hpp")" << kLF
+      << R"(#include "../../../src/sparse_list.hpp")" << kLF
       << kLF
       << "class " << name << kLF
       << R"(#define SM_BASE_TYPE \)" << kLF
